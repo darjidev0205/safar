@@ -1,0 +1,31 @@
+{
+  "name": "safar-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAFAR — Production-ready end-to-end transportation platform for weddings, corporate events and organized event transportation.",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --workspace=services/api run start:dev",
+    "dev:web": "npm --workspace=apps/web run dev",
+    "build": "npm run build:packages && npm run build:api && npm run build:web",
+    "build:packages": "npm --workspace=packages/types run build --if-present && npm --workspace=packages/validation run build --if-present && npm --workspace=packages/config run build --if-present && npm --workspace=packages/api-client run build --if-present && npm --workspace=packages/ui run build --if-present",
+    "build:api": "npm --workspace=services/api run build",
+    "build:web": "npm --workspace=apps/web run build",
+    "test": "npm --workspace=services/api run test",
+    "lint": "npm --workspace=apps/web run lint --if-present",
+    "typecheck": "npm --workspace=packages/types run typecheck --if-present && npm --workspace=packages/ui run typecheck --if-present && npm --workspace=services/api run typecheck --if-present && npm --workspace=apps/web run typecheck --if-present",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "node infrastructure/seed.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "prisma": "^5.22.0",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,219 @@
+export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ACCOUNT_OWNER = 'ACCOUNT_OWNER',
+  EVENT_ORGANIZER = 'EVENT_ORGANIZER',
+  DISPATCHER = 'DISPATCHER',
+  DRIVER = 'DRIVER',
+  GUEST = 'GUEST',
+}
+
+export enum TripStatus {
+  SCHEDULED = 'SCHEDULED',
+  ASSIGNED = 'ASSIGNED',
+  DRIVER_ACCEPTED = 'DRIVER_ACCEPTED',
+  EN_ROUTE_TO_PICKUP = 'EN_ROUTE_TO_PICKUP',
+  ARRIVED = 'ARRIVED',
+  BOARDING = 'BOARDING',
+  IN_TRANSIT = 'IN_TRANSIT',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  NO_SHOW = 'NO_SHOW',
+  FAILED = 'FAILED',
+}
+
+export enum DutyStatus {
+  OFF_DUTY = 'OFF_DUTY',
+  AVAILABLE = 'AVAILABLE',
+  ON_DUTY = 'ON_DUTY',
+  ON_TRIP = 'ON_TRIP',
+  BREAK = 'BREAK',
+}
+
+export enum VehicleCategory {
+  SEDAN = 'SEDAN',
+  SUV = 'SUV',
+  TEMPO_TRAVELLER = 'TEMPO_TRAVELLER',
+  LUXURY_SEDAN = 'LUXURY_SEDAN',
+  BUS = 'BUS',
+}
+
+export enum BookingStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  BOARDED = 'BOARDED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  NO_SHOW = 'NO_SHOW',
+}
+
+export enum NotificationChannel {
+  PUSH = 'PUSH',
+  SMS = 'SMS',
+  WHATSAPP = 'WHATSAPP',
+  IN_APP = 'IN_APP',
+}
+
+export interface UserProfile {
+  id: string;
+  firebaseUid: string;
+  email: string | null;
+  phoneNumber: string | null;
+  fullName: string;
+  avatarUrl?: string | null;
+  role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  slug: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventModel {
+  id: string;
+  accountId: string;
+  name: string;
+  city: string;
+  startDate: string;
+  endDate: string;
+  joinCode: string;
+  bannerUrl?: string | null;
+  description?: string | null;
+  status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlaceModel {
+  id: string;
+  eventId: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  type: 'HOTEL' | 'VENUE' | 'AIRPORT' | 'TRAIN_STATION' | 'RESIDENCE' | 'OTHER';
+}
+
+export interface FunctionModel {
+  id: string;
+  eventId: string;
+  placeId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  place?: PlaceModel;
+}
+
+export interface VehicleModel {
+  id: string;
+  accountId: string;
+  eventId?: string | null;
+  model: string;
+  plateNumber: string;
+  category: VehicleCategory;
+  capacity: number;
+  isActive: boolean;
+  currentLatitude?: number | null;
+  currentLongitude?: number | null;
+  lastPingAt?: string | null;
+}
+
+export interface DriverModel {
+  id: string;
+  accountId: string;
+  userId: string;
+  fullName: string;
+  phoneNumber: string;
+  licenseNumber: string;
+  dutyStatus: DutyStatus;
+  currentVehicleId?: string | null;
+  currentVehicle?: VehicleModel | null;
+}
+
+export interface GuestModel {
+  id: string;
+  eventId: string;
+  userId?: string | null;
+  fullName: string;
+  phoneNumber?: string | null;
+  email?: string | null;
+  groupName?: string | null;
+  hotelPlaceId?: string | null;
+  arrivalDate?: string | null;
+  notes?: string | null;
+}
+
+export interface TripModel {
+  id: string;
+  eventId: string;
+  driverId?: string | null;
+  vehicleId?: string | null;
+  originPlaceId: string;
+  destinationPlaceId: string;
+  scheduledPickupTime: string;
+  estimatedArrivalTime?: string | null;
+  status: TripStatus;
+  origin?: PlaceModel;
+  destination?: PlaceModel;
+  driver?: DriverModel;
+  vehicle?: VehicleModel;
+  bookingsCount?: number;
+  totalPassengers?: number;
+  passengerCapacity?: number;
+}
+
+export interface BookingModel {
+  id: string;
+  eventId: string;
+  tripId?: string | null;
+  guestId: string;
+  pickupPlaceId: string;
+  destinationPlaceId: string;
+  requestedPickupTime: string;
+  passengerCount: number;
+  requestedCategory: VehicleCategory;
+  status: BookingStatus;
+  boardingCode: string;
+  qrCodeUrl?: string | null;
+  guest?: GuestModel;
+  trip?: TripModel;
+  pickupPlace?: PlaceModel;
+  destinationPlace?: PlaceModel;
+}
+
+export interface LocationPingModel {
+  id: string;
+  tripId?: string | null;
+  driverId: string;
+  vehicleId?: string | null;
+  latitude: number;
+  longitude: number;
+  heading?: number | null;
+  speed?: number | null;
+  accuracy?: number | null;
+  timestamp: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  requestId: string;
+}
+
+export interface DashboardStats {
+  totalGuests: number;
+  totalBookings: number;
+  activeTrips: number;
+  vehiclesOnDuty: number;
+  totalVehicles: number;
+}

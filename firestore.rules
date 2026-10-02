@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Isolated user profiles by Firebase UID
+    match /users/{userId} {
+      // User can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // User can create their own profile initially
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['email', 'role', 'displayName'])
+        && request.resource.data.role in ['EVENT_ORGANIZER', 'ACCOUNT_OWNER', 'GUEST', 'DRIVER'];
+
+      // User can only update their own non-sensitive profile information
+      allow update: if request.auth != null && request.auth.uid == userId
+        // STRICT ROLE SAFETY: role, uid, and account ownership fields are IMMUTABLE by client
+        && request.resource.data.role == resource.data.role
+        && (!resource.data.keys().hasAny(['uid']) || request.resource.data.uid == resource.data.uid)
+        && (!resource.data.keys().hasAny(['firebaseUid']) || request.resource.data.firebaseUid == resource.data.firebaseUid);
+
+      // Deletions are forbidden from client
+      allow delete: if false;
+    }
+  }
+}

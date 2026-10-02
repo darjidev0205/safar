@@ -1,0 +1,24 @@
+{
+  "name": "SAFAR — Event Transportation",
+  "short_name": "SAFAR",
+  "description": "Seamless Rides. Unforgettable Events. Real-time guest and event transportation platform.",
+  "start_url": "/guest",
+  "display": "standalone",
+  "background_color": "#fcfbf9",
+  "theme_color": "#0d9488",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

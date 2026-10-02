@@ -1,0 +1,568 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ACCOUNT_OWNER
+  EVENT_ORGANIZER
+  DISPATCHER
+  DRIVER
+  GUEST
+}
+
+enum EventStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum PlaceType {
+  HOTEL
+  VENUE
+  AIRPORT
+  TRAIN_STATION
+  RESIDENCE
+  OTHER
+}
+
+enum VehicleCategory {
+  SEDAN
+  SUV
+  TEMPO_TRAVELLER
+  LUXURY_SEDAN
+  BUS
+}
+
+enum DutyStatus {
+  OFF_DUTY
+  AVAILABLE
+  ON_DUTY
+  ON_TRIP
+  BREAK
+}
+
+enum TripStatus {
+  SCHEDULED
+  ASSIGNED
+  DRIVER_ACCEPTED
+  EN_ROUTE_TO_PICKUP
+  ARRIVED
+  BOARDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  FAILED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  BOARDED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+model User {
+  id           String   @id @default(uuid())
+  firebaseUid  String   @unique
+  email        String?  @unique
+  phoneNumber  String?  @unique
+  fullName     String
+  avatarUrl    String?
+  role         Role     @default(GUEST)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accountMembers  AccountMember[]
+  eventMembers    EventMember[]
+  drivers         Driver[]
+  guests          Guest[]
+  createdEvents   Event[]         @relation("EventCreator")
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members      AccountMember[]
+  events       Event[]
+  vehicles     Vehicle[]
+  drivers      Driver[]
+  invitations  Invitation[]
+  auditLogs    AuditLog[]
+
+  @@map("accounts")
+}
+
+model AccountMember {
+  id        String   @id @default(uuid())
+  accountId String
+  userId    String
+  role      Role     @default(EVENT_ORGANIZER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, userId])
+  @@index([accountId])
+  @@index([userId])
+  @@map("account_members")
+}
+
+model Invitation {
+  id         String   @id @default(uuid())
+  accountId  String
+  email      String?
+  phone      String?
+  role       Role
+  token      String   @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([accountId])
+  @@map("invitations")
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  accountId   String
+  creatorId   String
+  name        String
+  city        String
+  startDate   DateTime
+  endDate     DateTime
+  joinCode    String      @unique
+  bannerUrl   String?
+  description String?
+  status      EventStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  creator       User           @relation("EventCreator", fields: [creatorId], references: [id])
+  eventMembers  EventMember[]
+  eventCodes    EventCode[]
+  functions     Function[]
+  places        Place[]
+  guests        Guest[]
+  trips         Trip[]
+  bookings      Booking[]
+  auditLogs     AuditLog[]
+
+  @@index([accountId])
+  @@index([joinCode])
+  @@map("events")
+}
+
+model EventMember {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  role      Role     @default(GUEST)
+  createdAt DateTime @default(now())
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_members")
+}
+
+model EventCode {
+  id        String   @id @default(uuid())
+  eventId   String
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@map("event_codes")
+}
+
+model Place {
+  id        String    @id @default(uuid())
+  eventId   String
+  name      String
+  address   String
+  latitude  Float
+  longitude Float
+  type      PlaceType @default(VENUE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  functions    Function[]
+  originTrips  Trip[]     @relation("TripOrigin")
+  destTrips    Trip[]     @relation("TripDestination")
+  originBookings Booking[] @relation("BookingOrigin")
+  destBookings Booking[]   @relation("BookingDestination")
+
+  @@index([eventId])
+  @@map("places")
+}
+
+model Function {
+  id        String   @id @default(uuid())
+  eventId   String
+  placeId   String
+  name      String
+  startTime DateTime
+  endTime   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([placeId])
+  @@map("functions")
+}
+
+model GuestGroup {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guests    Guest[]
+
+  @@map("guest_groups")
+}
+
+model Guest {
+  id           String      @id @default(uuid())
+  eventId      String
+  userId       String?
+  groupId      String?
+  fullName     String
+  phoneNumber  String?
+  email        String?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  group        GuestGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  bookings     Booking[]
+
+  @@index([eventId])
+  @@index([userId])
+  @@map("guests")
+}
+
+model Vehicle {
+  id             String          @id @default(uuid())
+  accountId      String
+  model          String
+  plateNumber    String          @unique
+  category       VehicleCategory @default(SEDAN)
+  capacity       Int             @default(4)
+  isActive       Boolean         @default(true)
+  currentLat     Float?
+  currentLng     Float?
+  lastPingAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  account        Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  documents      VehicleDocument[]
+  drivers        Driver[]
+  trips          Trip[]
+  duties         Duty[]
+  locationPings  LocationPing[]
+
+  @@index([accountId])
+  @@map("vehicles")
+}
+
+model VehicleDocument {
+  id         String   @id @default(uuid())
+  vehicleId  String
+  type       String
+  fileUrl    String
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_documents")
+}
+
+model Driver {
+  id             String       @id @default(uuid())
+  accountId      String
+  userId         String
+  currentVehicleId String?
+  licenseNumber    String
+  licenseExpiry    String?
+  address          String?
+  emergencyContact String?
+  vehicleInfo      String?
+  isVerified       Boolean      @default(true)
+  approvalStatus   String       @default("APPROVED")
+  dutyStatus       DutyStatus   @default(OFF_DUTY)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  account        Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentVehicle Vehicle?         @relation(fields: [currentVehicleId], references: [id], onDelete: SetNull)
+  documents      DriverDocument[]
+  duties         Duty[]
+  tripAssignments TripAssignment[]
+  locationPings  LocationPing[]
+  trips          Trip[]
+
+  @@unique([userId])
+  @@index([accountId])
+  @@map("drivers")
+}
+
+model DriverDocument {
+  id         String   @id @default(uuid())
+  driverId   String
+  type       String
+  fileUrl    String
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@map("driver_documents")
+}
+
+model Duty {
+  id         String     @id @default(uuid())
+  driverId   String
+  vehicleId  String
+  status     DutyStatus @default(ON_DUTY)
+  startedAt  DateTime   @default(now())
+  endedAt    DateTime?
+  createdAt  DateTime   @default(now())
+
+  driver     Driver     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([vehicleId])
+  @@map("duties")
+}
+
+model Trip {
+  id                   String     @id @default(uuid())
+  eventId              String
+  driverId             String?
+  vehicleId            String?
+  originPlaceId        String
+  destinationPlaceId   String
+  scheduledPickupTime  DateTime
+  estimatedArrivalTime DateTime?
+  actualStartTime      DateTime?
+  actualEndTime        DateTime?
+  status               TripStatus @default(SCHEDULED)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  event            Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  driver           Driver?          @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  vehicle          Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  originPlace      Place            @relation("TripOrigin", fields: [originPlaceId], references: [id])
+  destinationPlace Place            @relation("TripDestination", fields: [destinationPlaceId], references: [id])
+  assignments      TripAssignment[]
+  bookings         Booking[]
+  locationPings    LocationPing[]
+  tripEvents       TripEvent[]
+
+  @@index([eventId])
+  @@index([driverId])
+  @@index([vehicleId])
+  @@index([status])
+  @@map("trips")
+}
+
+model TripAssignment {
+  id         String   @id @default(uuid())
+  tripId     String
+  driverId   String
+  assignedAt DateTime @default(now())
+  acceptedAt DateTime?
+  declinedAt DateTime?
+
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, driverId])
+  @@index([tripId])
+  @@index([driverId])
+  @@map("trip_assignments")
+}
+
+model Booking {
+  id                   String          @id @default(uuid())
+  eventId              String
+  tripId               String?
+  guestId              String
+  originPlaceId        String
+  destinationPlaceId   String
+  requestedPickupTime  DateTime
+  passengerCount       Int             @default(1)
+  requestedCategory    VehicleCategory @default(SEDAN)
+  status               BookingStatus   @default(CONFIRMED)
+  boardingCode         String          @default("1234")
+  qrCodeUrl            String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  trip             Trip?              @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  guest            Guest              @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  originPlace      Place              @relation("BookingOrigin", fields: [originPlaceId], references: [id])
+  destinationPlace Place              @relation("BookingDestination", fields: [destinationPlaceId], references: [id])
+  passengers       BookingPassenger[]
+
+  @@index([eventId])
+  @@index([tripId])
+  @@index([guestId])
+  @@index([boardingCode])
+  @@map("bookings")
+}
+
+model BookingPassenger {
+  id        String   @id @default(uuid())
+  bookingId String
+  fullName  String
+  phone     String?
+  createdAt DateTime @default(now())
+
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_passengers")
+}
+
+model LocationPing {
+  id         String   @id @default(uuid())
+  tripId     String?
+  driverId   String
+  vehicleId  String?
+  latitude   Float
+  longitude  Float
+  heading    Float?
+  speed      Float?
+  accuracy   Float?
+  timestamp  DateTime @default(now())
+
+  trip       Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([driverId])
+  @@index([timestamp])
+  @@map("location_pings")
+}
+
+model TripEvent {
+  id        String     @id @default(uuid())
+  tripId    String
+  actorId   String?
+  fromStatus TripStatus?
+  toStatus  TripStatus
+  reason    String?
+  createdAt DateTime   @default(now())
+
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_events")
+}
+
+model Notification {
+  id         String               @id @default(uuid())
+  userId     String
+  title      String
+  message    String
+  channel    NotificationChannel  @default(IN_APP)
+  isRead     Boolean              @default(false)
+  createdAt  DateTime             @default(now())
+
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id             String               @id @default(uuid())
+  notificationId String
+  channel        NotificationChannel
+  status         String               @default("SENT")
+  error          String?
+  deliveredAt    DateTime             @default(now())
+
+  notification   Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@map("notification_deliveries")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  accountId  String?
+  eventId    String?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  account    Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("audit_logs")
+}

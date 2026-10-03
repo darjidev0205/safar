@@ -26,6 +26,7 @@
     "postinstall": "prisma generate"
   },
   "devDependencies": {
+    "@nestjs/cli": "^10.4.8",
     "@types/node": "^22.9.0",
     "concurrently": "^9.1.0",
     "prisma": "^5.22.0",

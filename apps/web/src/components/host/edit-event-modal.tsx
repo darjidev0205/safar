@@ -12,14 +12,24 @@ interface EditEventModalProps {
 }
 
 export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModalProps) {
-  if (!isOpen || !event) return null;
-
-  const [name, setName] = useState(event.name);
-  const [city, setCity] = useState(event.city);
-  const [startDate, setStartDate] = useState(event.startDate ? event.startDate.substring(0, 10) : '2026-11-14');
-  const [endDate, setEndDate] = useState(event.endDate ? event.endDate.substring(0, 10) : '2026-11-17');
-  const [description, setDescription] = useState(event.description || '');
+  const [name, setName] = useState(event?.name || '');
+  const [city, setCity] = useState(event?.city || '');
+  const [startDate, setStartDate] = useState(event?.startDate ? event.startDate.substring(0, 10) : '2026-11-14');
+  const [endDate, setEndDate] = useState(event?.endDate ? event.endDate.substring(0, 10) : '2026-11-17');
+  const [description, setDescription] = useState(event?.description || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (event) {
+      setName(event.name || '');
+      setCity(event.city || '');
+      setStartDate(event.startDate ? event.startDate.substring(0, 10) : '2026-11-14');
+      setEndDate(event.endDate ? event.endDate.substring(0, 10) : '2026-11-17');
+      setDescription(event.description || '');
+    }
+  }, [event]);
+
+  if (!isOpen || !event) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

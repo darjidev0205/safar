@@ -1,13 +1,13 @@
 import { TripStatus } from '@safar/types';
 
 export const SAFAR_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBbEiDaywf9ZjjIBpCv5co6DzdFuZ6_Kl8",
-  authDomain: "safar-production-6fa71.firebaseapp.com",
-  projectId: "safar-production-6fa71",
-  storageBucket: "safar-production-6fa71.firebasestorage.app",
-  messagingSenderId: "149397631342",
-  appId: "1:149397631342:web:b50da262b5e6cab191917f",
-  measurementId: "G-28YVPSE0YY"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBbEiDaywf9ZjjIBpCv5co6DzdFuZ6_Kl8",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "safar-production-6fa71.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "safar-production-6fa71",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "safar-production-6fa71.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "149397631342",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:149397631342:web:b50da262b5e6cab191917f",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-28YVPSE0YY"
 };
 
 export const SAFAR_THEME = {

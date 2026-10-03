@@ -1178,7 +1178,7 @@ export default function LandingPage() {
               <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-[#101827] tracking-tight leading-tight">
                 Events are complex.{' '}
                 <span className="font-serif italic font-normal text-[#0B968D]">Arrivals</span>{' '}
-                shouldn't be.
+                shouldn&apos;t be.
               </h2>
             </div>
 
@@ -1324,7 +1324,7 @@ export default function LandingPage() {
                 </span>
               </div>
               <p className="text-sm font-serif italic text-[#475569]">
-                Wherever the event, we'll get you there.
+                Wherever the event, we&apos;ll get you there.
               </p>
             </div>
 

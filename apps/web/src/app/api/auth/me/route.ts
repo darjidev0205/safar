@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         role: user.role,
         driverProfile: user.drivers[0] || null,
         guestProfile: user.guests[0] || null,
-        accounts: user.accountMembers.map((am) => am.account),
+        accounts: user.accountMembers.map((am: any) => am.account),
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
       },

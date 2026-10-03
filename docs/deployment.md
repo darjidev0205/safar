@@ -4,19 +4,20 @@
 
 ```
 [ Vercel CDN ]           [ Persistent Server / Container ]         [ Managed DB ]
-   apps/web                    services/api                         PostgreSQL
-(Next.js + PWA)       (NestJS REST API + WebSocket Server)           + PostGIS
+   apps/web                    services/api                        MongoDB Atlas
+(Next.js + PWA)       (NestJS REST API + WebSocket Server)       (Production Cluster)
       │                                    │                              │
       └────────────────────────────────────┴──────────────────────────────┘
 ```
 
 > **Important**: Do NOT attempt to run NestJS WebSockets inside a serverless Vercel function. Vercel functions are stateless and terminate after execution. Deploy `services/api` on Render, Railway, Fly.io, or AWS ECS/Fargate where persistent TCP connections and WebSockets can run 24/7.
 
-## 1. Web Application (Vercel)
-1. Import repository on Vercel.
+## 1. Web Application (Vercel / Render)
+1. Import repository on Vercel or Render.
 2. Root Directory: `apps/web`.
 3. Framework Preset: Next.js.
 4. Set Environment Variables:
+   - `DATABASE_URL` (MongoDB Atlas connection string: `mongodb+srv://.../safar_db?retryWrites=true&w=majority`)
    - `NEXT_PUBLIC_FIREBASE_API_KEY`
    - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
    - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
@@ -31,14 +32,14 @@
 1. Deploy from `services/api`.
 2. Configure persistent container runtime with Node.js 20+.
 3. Set Environment Variables:
-   - `DATABASE_URL` (PostgreSQL connection string with SSL)
+   - `DATABASE_URL` (MongoDB Atlas connection string: `mongodb+srv://.../safar_db?retryWrites=true&w=majority`)
    - `FIREBASE_PROJECT_ID`
    - `FIREBASE_CLIENT_EMAIL`
    - `FIREBASE_PRIVATE_KEY`
    - `PORT=4000`
-4. Run database migrations:
+4. Synchronize Prisma schema with MongoDB Atlas:
    ```bash
-   npx prisma migrate deploy
+   npx prisma db push
    ```
 
 ## 3. Driver App (Expo EAS Build)

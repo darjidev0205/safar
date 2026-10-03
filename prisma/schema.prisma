@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -79,7 +79,7 @@ enum NotificationChannel {
 }
 
 model User {
-  id           String   @id @default(uuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   firebaseUid  String   @unique
   email        String?  @unique
   phoneNumber  String?  @unique
@@ -101,10 +101,10 @@ model User {
 }
 
 model Account {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   slug      String   @unique
-  ownerId   String
+  ownerId   String   @db.ObjectId
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -121,9 +121,9 @@ model Account {
 }
 
 model AccountMember {
-  id        String   @id @default(uuid())
-  accountId String
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId String   @db.ObjectId
+  userId    String   @db.ObjectId
   role      Role     @default(EVENT_ORGANIZER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -138,8 +138,8 @@ model AccountMember {
 }
 
 model Invitation {
-  id         String   @id @default(uuid())
-  accountId  String
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId  String   @db.ObjectId
   email      String?
   phone      String?
   role       Role
@@ -150,15 +150,14 @@ model Invitation {
 
   account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([token])
   @@index([accountId])
   @@map("invitations")
 }
 
 model Event {
-  id                  String      @id @default(uuid())
-  accountId           String
-  creatorId           String
+  id                  String      @id @default(auto()) @map("_id") @db.ObjectId
+  accountId           String      @db.ObjectId
+  creatorId           String      @db.ObjectId
   name                String
   eventType           String?
   city                String
@@ -175,13 +174,13 @@ model Event {
   bannerUrl           String?
   description         String?
   status              EventStatus @default(ACTIVE)
-  parentEventId       String?
+  parentEventId       String?     @db.ObjectId
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
   account               Account                     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   creator               User                        @relation("EventCreator", fields: [creatorId], references: [id])
-  parentEvent           Event?                      @relation("EventHierarchy", fields: [parentEventId], references: [id], onDelete: Cascade)
+  parentEvent           Event?                      @relation("EventHierarchy", fields: [parentEventId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subEvents             Event[]                     @relation("EventHierarchy")
   eventMembers          EventMember[]
   eventCodes            EventCode[]
@@ -195,15 +194,14 @@ model Event {
   eventGuests           EventGuest[]
 
   @@index([accountId])
-  @@index([joinCode])
   @@index([parentEventId])
   @@map("events")
 }
 
 model EventMember {
-  id        String   @id @default(uuid())
-  eventId   String
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String   @db.ObjectId
+  userId    String   @db.ObjectId
   role      Role     @default(GUEST)
   createdAt DateTime @default(now())
 
@@ -217,8 +215,8 @@ model EventMember {
 }
 
 model EventCode {
-  id        String   @id @default(uuid())
-  eventId   String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String   @db.ObjectId
   code      String   @unique
   isActive  Boolean  @default(true)
   expiresAt DateTime?
@@ -226,13 +224,12 @@ model EventCode {
 
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@index([code])
   @@map("event_codes")
 }
 
 model Place {
-  id        String    @id @default(uuid())
-  eventId   String
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String    @db.ObjectId
   name      String
   address   String
   latitude  Float
@@ -253,9 +250,9 @@ model Place {
 }
 
 model Function {
-  id        String   @id @default(uuid())
-  eventId   String
-  placeId   String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String   @db.ObjectId
+  placeId   String   @db.ObjectId
   name      String
   startTime DateTime
   endTime   DateTime
@@ -271,7 +268,7 @@ model Function {
 }
 
 model GuestGroup {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -282,8 +279,8 @@ model GuestGroup {
 }
 
 model EventTransportRequirement {
-  id                  String   @id @default(uuid())
-  eventId             String
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId             String   @db.ObjectId
   pickupRequired      Boolean  @default(false)
   dropRequired        Boolean  @default(false)
   pickupLocation      String?
@@ -303,8 +300,8 @@ model EventTransportRequirement {
 }
 
 model Family {
-  id        String   @id @default(uuid())
-  accountId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId String   @db.ObjectId
   name      String
   relation  String?
   notes     String?
@@ -319,12 +316,12 @@ model Family {
 }
 
 model Guest {
-  id                  String       @id @default(uuid())
-  eventId             String?
-  accountId           String?
-  userId              String?
-  groupId             String?
-  familyId            String?
+  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+  eventId             String?      @db.ObjectId
+  accountId           String?      @db.ObjectId
+  userId              String?      @db.ObjectId
+  groupId             String?      @db.ObjectId
+  familyId            String?      @db.ObjectId
   familyName          String?
   relation            String?
   fullName            String
@@ -357,9 +354,9 @@ model Guest {
 }
 
 model EventGuest {
-  id                  String   @id @default(uuid())
-  eventId             String
-  guestId             String
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId             String   @db.ObjectId
+  guestId             String   @db.ObjectId
   status              String   @default("CONFIRMED")
   pickupLocation      String?
   dropLocation        String?
@@ -379,8 +376,8 @@ model EventGuest {
 }
 
 model Vehicle {
-  id             String          @id @default(uuid())
-  accountId      String
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  accountId      String          @db.ObjectId
   model          String
   plateNumber    String          @unique
   category       VehicleCategory @default(SEDAN)
@@ -404,8 +401,8 @@ model Vehicle {
 }
 
 model VehicleDocument {
-  id         String   @id @default(uuid())
-  vehicleId  String
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  vehicleId  String   @db.ObjectId
   type       String
   fileUrl    String
   expiresAt  DateTime?
@@ -418,10 +415,10 @@ model VehicleDocument {
 }
 
 model Driver {
-  id             String       @id @default(uuid())
-  accountId      String
-  userId         String
-  currentVehicleId String?
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  accountId      String       @db.ObjectId
+  userId         String       @db.ObjectId
+  currentVehicleId String?    @db.ObjectId
   licenseNumber    String
   licenseExpiry    String?
   address          String?
@@ -448,8 +445,8 @@ model Driver {
 }
 
 model DriverDocument {
-  id         String   @id @default(uuid())
-  driverId   String
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  driverId   String   @db.ObjectId
   type       String
   fileUrl    String
   expiresAt  DateTime?
@@ -462,9 +459,9 @@ model DriverDocument {
 }
 
 model Duty {
-  id         String     @id @default(uuid())
-  driverId   String
-  vehicleId  String
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  driverId   String     @db.ObjectId
+  vehicleId  String     @db.ObjectId
   status     DutyStatus @default(ON_DUTY)
   startedAt  DateTime   @default(now())
   endedAt    DateTime?
@@ -479,12 +476,12 @@ model Duty {
 }
 
 model Trip {
-  id                   String     @id @default(uuid())
-  eventId              String
-  driverId             String?
-  vehicleId            String?
-  originPlaceId        String
-  destinationPlaceId   String
+  id                   String     @id @default(auto()) @map("_id") @db.ObjectId
+  eventId              String     @db.ObjectId
+  driverId             String?    @db.ObjectId
+  vehicleId            String?    @db.ObjectId
+  originPlaceId        String     @db.ObjectId
+  destinationPlaceId   String     @db.ObjectId
   scheduledPickupTime  DateTime
   estimatedArrivalTime DateTime?
   actualStartTime      DateTime?
@@ -511,9 +508,9 @@ model Trip {
 }
 
 model TripAssignment {
-  id         String   @id @default(uuid())
-  tripId     String
-  driverId   String
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId     String   @db.ObjectId
+  driverId   String   @db.ObjectId
   assignedAt DateTime @default(now())
   acceptedAt DateTime?
   declinedAt DateTime?
@@ -528,12 +525,12 @@ model TripAssignment {
 }
 
 model Booking {
-  id                   String          @id @default(uuid())
-  eventId              String
-  tripId               String?
-  guestId              String
-  originPlaceId        String
-  destinationPlaceId   String
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  eventId              String          @db.ObjectId
+  tripId               String?         @db.ObjectId
+  guestId              String          @db.ObjectId
+  originPlaceId        String          @db.ObjectId
+  destinationPlaceId   String          @db.ObjectId
   requestedPickupTime  DateTime
   passengerCount       Int             @default(1)
   requestedCategory    VehicleCategory @default(SEDAN)
@@ -558,8 +555,8 @@ model Booking {
 }
 
 model BookingPassenger {
-  id        String   @id @default(uuid())
-  bookingId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId String   @db.ObjectId
   fullName  String
   phone     String?
   createdAt DateTime @default(now())
@@ -571,10 +568,10 @@ model BookingPassenger {
 }
 
 model LocationPing {
-  id         String   @id @default(uuid())
-  tripId     String?
-  driverId   String
-  vehicleId  String?
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  tripId     String?  @db.ObjectId
+  driverId   String   @db.ObjectId
+  vehicleId  String?  @db.ObjectId
   latitude   Float
   longitude  Float
   heading    Float?
@@ -593,8 +590,8 @@ model LocationPing {
 }
 
 model TripEvent {
-  id        String     @id @default(uuid())
-  tripId    String
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  tripId    String     @db.ObjectId
   actorId   String?
   fromStatus TripStatus?
   toStatus  TripStatus
@@ -608,8 +605,8 @@ model TripEvent {
 }
 
 model Notification {
-  id         String               @id @default(uuid())
-  userId     String
+  id         String               @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String               @db.ObjectId
   title      String
   message    String
   channel    NotificationChannel  @default(IN_APP)
@@ -624,8 +621,8 @@ model Notification {
 }
 
 model NotificationDelivery {
-  id             String               @id @default(uuid())
-  notificationId String
+  id             String               @id @default(auto()) @map("_id") @db.ObjectId
+  notificationId String               @db.ObjectId
   channel        NotificationChannel
   status         String               @default("SENT")
   error          String?
@@ -638,10 +635,10 @@ model NotificationDelivery {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  accountId  String?
-  eventId    String?
-  userId     String?
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId  String?  @db.ObjectId
+  eventId    String?  @db.ObjectId
+  userId     String?  @db.ObjectId
   action     String
   entityType String
   entityId   String

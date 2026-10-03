@@ -20,7 +20,8 @@
     "lint": "npm --workspace=apps/web run lint --if-present",
     "typecheck": "npm --workspace=packages/types run typecheck --if-present && npm --workspace=packages/ui run typecheck --if-present && npm --workspace=services/api run typecheck --if-present && npm --workspace=apps/web run typecheck --if-present",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "prisma db push",
+    "db:push": "prisma db push",
     "db:seed": "node infrastructure/seed.js",
     "postinstall": "prisma generate"
   },

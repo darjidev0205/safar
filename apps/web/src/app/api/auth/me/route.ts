@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         if (!decoded.uid && !decoded.email) {
           if (token.includes('@')) {
             resolvedEmail = token.toLowerCase().trim();
-          } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+          } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token) || /^[0-9a-fA-F]{24}$/.test(token)) {
             resolvedUserId = token;
           } else {
             resolvedFirebaseUid = token;
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     }
 
     const orConditions: any[] = [];
-    if (resolvedUserId) {
+    if (resolvedUserId && /^[0-9a-fA-F]{24}$/.test(resolvedUserId)) {
       orConditions.push({ id: resolvedUserId });
     }
     if (resolvedFirebaseUid) {
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching /api/auth/me:', error);
     return NextResponse.json(
-      { success: false, error: { message: error.message || 'Database error' } },
+      { success: false, error: { message: "We couldn't authenticate your session. Please try again." } },
       { status: 500 }
     );
   }

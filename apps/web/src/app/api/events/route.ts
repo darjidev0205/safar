@@ -245,12 +245,8 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating event/function:', error);
-    const isPrisma = error?.code?.startsWith?.('P') || error?.name?.includes?.('Prisma');
-    const userMessage = isPrisma
-      ? 'Unable to create event due to a database constraint. Please check details and try again.'
-      : (error?.message || 'Failed to create event');
     return NextResponse.json(
-      { success: false, error: { message: userMessage } },
+      { success: false, error: { message: "We couldn't create your event. Please try again." } },
       { status: 500 }
     );
   }

@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { TripStatus, VehicleCategory, DutyStatus } from '@safar/types';
 
+// Accept both MongoDB 24-hex ObjectId and standard UUID formats
+const IdSchema = z.string().min(1);
+
 export const JoinEventCodeSchema = z.object({
   code: z.string().trim().min(4).max(12).toUpperCase(),
 });
@@ -23,7 +26,7 @@ export const CreatePlaceSchema = z.object({
 
 export const CreateFunctionSchema = z.object({
   name: z.string().min(2),
-  placeId: z.string().uuid(),
+  placeId: IdSchema,
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
 });
@@ -39,15 +42,15 @@ export const InviteDriverSchema = z.object({
   fullName: z.string().min(2),
   phoneNumber: z.string().min(10),
   licenseNumber: z.string().min(4),
-  assignedVehicleId: z.string().uuid().optional(),
+  assignedVehicleId: IdSchema.optional(),
 });
 
 export const CreateTripSchema = z.object({
-  originPlaceId: z.string().uuid(),
-  destinationPlaceId: z.string().uuid(),
+  originPlaceId: IdSchema,
+  destinationPlaceId: IdSchema,
   scheduledPickupTime: z.string().datetime(),
-  vehicleId: z.string().uuid().optional(),
-  driverId: z.string().uuid().optional(),
+  vehicleId: IdSchema.optional(),
+  driverId: IdSchema.optional(),
 });
 
 export const UpdateTripStatusSchema = z.object({
@@ -56,20 +59,20 @@ export const UpdateTripStatusSchema = z.object({
 });
 
 export const CreateBookingSchema = z.object({
-  pickupPlaceId: z.string().uuid(),
-  destinationPlaceId: z.string().uuid(),
+  pickupPlaceId: IdSchema,
+  destinationPlaceId: IdSchema,
   requestedPickupTime: z.string().datetime(),
   passengerCount: z.number().int().min(1).max(12),
   requestedCategory: z.nativeEnum(VehicleCategory),
 });
 
 export const VerifyBoardingSchema = z.object({
-  tripId: z.string().uuid(),
+  tripId: IdSchema,
   boardingCode: z.string().length(4, 'Boarding code must be exactly 4 digits'),
 });
 
 export const LocationPingSchema = z.object({
-  tripId: z.string().uuid().optional().nullable(),
+  tripId: IdSchema.optional().nullable(),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   heading: z.number().min(0).max(360).optional().nullable(),

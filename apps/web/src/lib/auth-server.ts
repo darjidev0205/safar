@@ -83,7 +83,7 @@ export async function getAuthenticatedHost(
         if (!decoded.uid && !decoded.email) {
           if (token.includes('@')) {
             resolvedEmail = token.toLowerCase().trim();
-          } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+          } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token) || /^[0-9a-fA-F]{24}$/.test(token)) {
             resolvedUserId = token;
           } else {
             resolvedFirebaseUid = token;
@@ -93,7 +93,7 @@ export async function getAuthenticatedHost(
     }
 
     const orConditions: any[] = [];
-    if (resolvedUserId) {
+    if (resolvedUserId && /^[0-9a-fA-F]{24}$/.test(resolvedUserId)) {
       orConditions.push({ id: resolvedUserId });
     }
     if (resolvedFirebaseUid) {
@@ -234,7 +234,7 @@ export async function getAuthenticatedHost(
     return {
       context: null,
       response: NextResponse.json(
-        { success: false, error: { message: error.message || 'Internal server authentication error' } },
+        { success: false, error: { message: "We couldn't create your event. Please try again." } },
         { status: 500 }
       ),
     };
@@ -248,6 +248,16 @@ export async function verifyEventOwnership(
   eventId: string,
   accountId: string
 ): Promise<{ event: any | null; errorResponse?: NextResponse }> {
+  if (!eventId || !/^[0-9a-fA-F]{24}$/.test(eventId) || !accountId || !/^[0-9a-fA-F]{24}$/.test(accountId)) {
+    return {
+      event: null,
+      errorResponse: NextResponse.json(
+        { success: false, error: { message: 'Event not found or you do not have permission to access it.' } },
+        { status: 404 }
+      ),
+    };
+  }
+
   const event = await prisma.event.findFirst({
     where: {
       id: eventId,

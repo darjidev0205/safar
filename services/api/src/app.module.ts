@@ -6,6 +6,7 @@ import { FleetModule } from './modules/fleet/fleet.module';
 import { TripsModule } from './modules/trips/trips.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
+import { HealthController } from './modules/health/health.controller';
 
 @Module({
   imports: [
@@ -17,5 +18,6 @@ import { TrackingModule } from './modules/tracking/tracking.module';
     BookingsModule,
     TrackingModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

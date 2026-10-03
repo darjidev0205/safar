@@ -4,24 +4,72 @@ interface SafarLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   showTagline?: boolean;
+  variant?: 'modern' | 'editorial';
 }
 
-export function SafarLogo({ className = '', size = 'md', showTagline = false }: SafarLogoProps) {
+export function SafarLogo({
+  className = '',
+  size = 'md',
+  showTagline = false,
+  variant = 'editorial',
+}: SafarLogoProps) {
   const iconSizes = {
-    sm: 'w-7 h-7',
-    md: 'w-9 h-9',
-    lg: 'w-12 h-12',
+    sm: 'w-6 h-6',
+    md: 'w-8 h-8',
+    lg: 'w-10 h-10',
   };
 
   const textSizes = {
-    sm: 'text-lg',
-    md: 'text-2xl',
-    lg: 'text-3xl',
+    sm: 'text-base',
+    md: 'text-xl',
+    lg: 'text-2xl',
   };
+
+  if (variant === 'editorial') {
+    return (
+      <div className={`flex items-center gap-2.5 ${className}`}>
+        {/* Editorial Handcrafted Sun/Lotus Emblem */}
+        <div className={`relative ${iconSizes[size]} flex items-center justify-center shrink-0`}>
+          <svg
+            viewBox="0 0 36 36"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full text-terracotta-600"
+          >
+            <circle cx="18" cy="18" r="14.5" stroke="#C49E64" strokeWidth="1" strokeDasharray="1.5 1.5" />
+            <path
+              d="M18 6V10M18 26V30M6 18H10M26 18H30"
+              stroke="#B85D43"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+            <path
+              d="M9.5 9.5L12.5 12.5M23.5 23.5L26.5 26.5M26.5 9.5L23.5 12.5M12.5 23.5L9.5 26.5"
+              stroke="#C49E64"
+              strokeWidth="0.9"
+            />
+            <circle cx="18" cy="18" r="3.5" fill="#B85D43" />
+          </svg>
+        </div>
+
+        <div className="flex flex-col">
+          <span
+            className={`font-serif tracking-[0.25em] text-charcoal-900 font-bold ${textSizes[size]} leading-none`}
+          >
+            SAFAR
+          </span>
+          {showTagline && (
+            <span className="text-[10px] tracking-[0.15em] uppercase text-charcoal-500 font-sans mt-0.5">
+              Wedding Mobility
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
-      {/* Refined Teal 'S' swoosh icon */}
       <div className={`relative ${iconSizes[size]} flex items-center justify-center`}>
         <svg
           viewBox="0 0 48 48"

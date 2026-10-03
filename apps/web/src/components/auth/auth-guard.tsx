@@ -37,31 +37,31 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   // If unauthenticated, NEVER render the protected dashboard
   if (authStatus === 'UNAUTHENTICATED') {
     return (
-      <div className="min-h-screen bg-warm-50 flex flex-col items-center justify-center p-6 text-center font-sans">
-        <div className="max-w-md w-full p-8 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm space-y-5">
-          <div className="w-14 h-14 rounded-2xl bg-safar-50 text-safar-700 mx-auto flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAF7F2] paper-texture flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="max-w-md w-full p-8 rounded-3xl bg-white/90 border border-[#E5DACB] shadow-sm invitation-frame space-y-5">
+          <div className="w-14 h-14 rounded-2xl bg-warm-100 text-terracotta-700 mx-auto flex items-center justify-center border border-[#E5DACB]">
             <Lock className="w-7 h-7" />
           </div>
 
           <div className="space-y-1.5">
-            <h2 className="text-xl font-bold text-charcoal-900 tracking-tight">
+            <h2 className="font-serif text-2xl font-bold text-charcoal-900 tracking-tight">
               Authentication Required
             </h2>
-            <p className="text-xs text-charcoal-500 leading-relaxed">
-              This transportation dashboard is protected by SAFAR multi-tenant security. Please sign in with your authorized credentials.
+            <p className="text-xs text-charcoal-600 leading-relaxed">
+              This transportation dashboard is protected by SAFAR multi-tenant security. Please sign in with your authorized guest or host account.
             </p>
           </div>
 
           <div className="pt-2 space-y-2">
             <button
               onClick={() => setShowAuthModal(true)}
-              className="w-full py-3 rounded-2xl bg-safar-600 hover:bg-safar-700 text-white font-bold text-xs shadow-md shadow-safar-600/30 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              className="w-full py-3 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               Sign In to SAFAR <ArrowRight className="w-4 h-4" />
             </button>
             <Link
               href="/"
-              className="block w-full py-2.5 rounded-2xl text-xs font-semibold text-charcoal-600 hover:bg-charcoal-50 transition-colors"
+              className="block w-full py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider text-charcoal-600 hover:bg-warm-100 transition-colors"
             >
               Return to Landing Page
             </Link>

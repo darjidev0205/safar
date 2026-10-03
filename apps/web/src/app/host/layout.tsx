@@ -7,6 +7,7 @@ import { EventWizardModal } from '../../components/host/event-wizard-modal';
 import { EventModel, UserRole } from '@safar/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthGuard } from '../../components/auth/auth-guard';
+import { MobileBottomNav } from '../../components/host/mobile-bottom-nav';
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -75,12 +76,13 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
       localStorage.setItem('safar_host_events', JSON.stringify(updated));
     }
   };
-
   return (
     <AuthGuard allowedRoles={[UserRole.EVENT_ORGANIZER, UserRole.ACCOUNT_OWNER, UserRole.SUPER_ADMIN]}>
-      <div className="min-h-screen w-full flex bg-warm-50 text-charcoal-900 font-sans">
-        {/* Sidebar - Desktop and Tablet */}
-        <HostSidebar currentTab={currentTab} onTabChange={handleTabChange} />
+      <div className="min-h-screen w-full flex bg-warm-50 paper-texture text-charcoal-900 font-sans">
+        {/* Sidebar - Desktop and Tablet Only */}
+        <div className="hidden md:flex shrink-0">
+          <HostSidebar currentTab={currentTab} onTabChange={handleTabChange} />
+        </div>
 
         {/* Main Viewport Content Area */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -91,12 +93,15 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
             onOpenWizard={() => setIsWizardOpen(true)}
           />
 
-          <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto pb-24 md:pb-8">
             {children}
           </main>
         </div>
 
-        {/* 10-Step Event Creation Wizard */}
+        {/* Mobile Floating Glass Bottom Navigation */}
+        <MobileBottomNav onOpenWizard={() => setIsWizardOpen(true)} />
+
+        {/* Bespoke Event Creation Wizard */}
         <EventWizardModal
           isOpen={isWizardOpen}
           onClose={() => setIsWizardOpen(false)}

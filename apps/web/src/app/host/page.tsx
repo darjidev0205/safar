@@ -1,304 +1,362 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { KpiCards } from '../../components/host/kpi-cards';
+import React, { useState, useEffect, useCallback } from 'react';
+import { KpiCards, HostKpiStats } from '../../components/host/kpi-cards';
 import { UpcomingTripsTable } from '../../components/host/upcoming-trips-table';
 import { LiveFleetMapCard } from '../../components/host/live-fleet-map-card';
-import { QuickActionsBar } from '../../components/host/quick-actions-bar';
-import { EmptyState } from '../../components/ui/empty-state';
-import { CalendarPlus, Calendar, Plus, Edit3, Share2, Sparkles, AlertCircle } from 'lucide-react';
-import { TripModel, DashboardStats, TripStatus, EventModel } from '@safar/types';
+import {
+  CalendarPlus,
+  Plus,
+  Edit3,
+  Users,
+  Car,
+  Clock,
+  MapPin,
+  ChevronRight,
+  FileSpreadsheet,
+} from 'lucide-react';
+import { TripStatus } from '@safar/types';
 import { EventWizardModal } from '../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../components/host/edit-event-modal';
+import { GuestExcelImportModal } from '../../components/host/guest-excel-import-modal';
 import { useAuth } from '../../context/auth-context';
 import { formatHostGreeting } from '../../lib/time-greeting';
+import { StarFlourish, MarigoldFlower, OliveBranch } from '../../components/ui/botanical-ornaments';
+import { SafarBadge, SafarButton, SafarEmptyState } from '../../components/ui/safar-design-system';
+import Link from 'next/link';
 
 export default function HostDashboardPage() {
   const { profile, authStatus } = useAuth();
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [events, setEvents] = useState<EventModel[]>([]);
-  const [activeEvent, setActiveEvent] = useState<EventModel | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  // Dynamic timer that auto-refreshes greeting if host crosses boundary (e.g. morning to afternoon)
+  const [events, setEvents] = useState<any[]>([]);
+  const [activeEvent, setActiveEvent] = useState<any | null>(null);
+  const [stats, setStats] = useState<HostKpiStats>({
+    totalGuests: 0,
+    families: 0,
+    vehiclesRequired: 0,
+    guestsAssigned: 0,
+    guestsPending: 0,
+    driversAssigned: 0,
+    activeTrips: 0,
+  });
+  const [trips, setTrips] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Dynamic timer for greeting updates
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDate(new Date());
-    }, 20000);
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
 
-  // Check demo mode environment configuration
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  // Fetch real database records for this authenticated host
+  const fetchHostData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
 
-  // Load events from persistence or initialize
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('safar_host_events');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setEvents(parsed);
-            setActiveEvent(parsed[0]);
-            return;
+      const [eventsRes, dashRes] = await Promise.all([
+        fetch('/api/events', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-user-id': profile?.id || '',
+            'x-user-email': profile?.email || '',
+            'x-user-uid': profile?.firebaseUid || '',
+          },
+        }),
+        fetch('/api/host/dashboard', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-user-id': profile?.id || '',
+            'x-user-email': profile?.email || '',
+            'x-user-uid': profile?.firebaseUid || '',
+          },
+        }),
+      ]);
+
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json();
+        if (eventsData.success && Array.isArray(eventsData.events)) {
+          setEvents(eventsData.events);
+          if (eventsData.events.length > 0 && !activeEvent) {
+            setActiveEvent(eventsData.events[0]);
           }
-        } catch (e) {
-          // ignore
         }
       }
 
-      // If demo mode is explicitly enabled, provide sample event
-      if (isDemoMode) {
-        const demoEvent: EventModel = {
-          id: 'ev_demo_1',
-          accountId: 'acc_demo',
-          name: 'Aarav & Diya Wedding',
-          city: 'Ahmedabad',
-          startDate: '2026-11-14T09:00:00.000Z',
-          endDate: '2026-11-17T23:00:00.000Z',
-          joinCode: 'ADW26X',
-          status: 'ACTIVE',
-          description: 'Grand Royal Wedding & Multi-Venue Mobility',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        setEvents([demoEvent]);
-        setActiveEvent(demoEvent);
+      if (dashRes.ok) {
+        const dashData = await dashRes.json();
+        if (dashData.success) {
+          if (dashData.stats) {
+            setStats(dashData.stats);
+          }
+          if (Array.isArray(dashData.trips)) {
+            setTrips(dashData.trips);
+          }
+        }
       }
+    } catch (err) {
+      console.error('Error fetching host dashboard data:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [isDemoMode]);
+  }, [profile, activeEvent]);
 
-  const handleEventCreated = (newEvent: EventModel) => {
-    const updated = [newEvent, ...events];
-    setEvents(updated);
+  useEffect(() => {
+    if (authStatus === 'AUTHENTICATED') {
+      fetchHostData();
+    }
+  }, [authStatus, fetchHostData]);
+
+  const handleEventCreated = (newEvent: any) => {
+    fetchHostData();
     setActiveEvent(newEvent);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safar_host_events', JSON.stringify(updated));
-    }
   };
 
-  const handleEventUpdated = (updatedEvent: EventModel) => {
-    const updatedList = events.map((ev) => (ev.id === updatedEvent.id ? updatedEvent : ev));
-    setEvents(updatedList);
+  const handleEventUpdated = (updatedEvent: any) => {
+    fetchHostData();
     setActiveEvent(updatedEvent);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safar_host_events', JSON.stringify(updatedList));
-    }
   };
 
-  // Real database metrics (dynamic state)
-  const stats: DashboardStats = activeEvent
-    ? {
-        totalGuests: 186,
-        totalBookings: 142,
-        activeTrips: 12,
-        vehiclesOnDuty: 8,
-        totalVehicles: 12,
-      }
-    : {
-        totalGuests: 0,
-        totalBookings: 0,
-        activeTrips: 0,
-        vehiclesOnDuty: 0,
-        totalVehicles: 0,
-      };
-
-  const trips: TripModel[] = activeEvent
-    ? [
-        {
-          id: 'tr_1',
-          eventId: activeEvent.id,
-          originPlaceId: 'p_1',
-          destinationPlaceId: 'p_2',
-          scheduledPickupTime: '2026-11-14T08:30:00.000Z',
-          status: TripStatus.EN_ROUTE_TO_PICKUP,
-          origin: { id: 'p_1', eventId: activeEvent.id, name: 'The Grand Hotel', address: 'SG Hwy', latitude: 23.03, longitude: 72.52, type: 'HOTEL' },
-          destination: { id: 'p_2', eventId: activeEvent.id, name: 'The Celebration Venue', address: 'Sindhu Bhavan', latitude: 23.04, longitude: 72.51, type: 'VENUE' },
-          vehicle: { id: 'v_1', accountId: 'a_1', model: 'Force Urbania', plateNumber: 'KA 01 AB 1234', category: 'TEMPO_TRAVELLER' as any, capacity: 16, isActive: true },
-          driver: { id: 'd_1', accountId: 'a_1', userId: 'u_1', fullName: 'Rohit Sharma', phoneNumber: '+91 98765 00001', licenseNumber: 'DL01', dutyStatus: 'ON_DUTY' as any },
-        },
-        {
-          id: 'tr_2',
-          eventId: activeEvent.id,
-          originPlaceId: 'p_1',
-          destinationPlaceId: 'p_2',
-          scheduledPickupTime: '2026-11-14T09:15:00.000Z',
-          status: TripStatus.ASSIGNED,
-          origin: { id: 'p_1', eventId: activeEvent.id, name: 'The Grand Hotel', address: 'SG Hwy', latitude: 23.03, longitude: 72.52, type: 'HOTEL' },
-          destination: { id: 'p_2', eventId: activeEvent.id, name: 'The Celebration Venue', address: 'Sindhu Bhavan', latitude: 23.04, longitude: 72.51, type: 'VENUE' },
-          vehicle: { id: 'v_2', accountId: 'a_1', model: 'Innova Crysta', plateNumber: 'KA 02 CD 5678', category: 'SUV' as any, capacity: 6, isActive: true },
-          driver: { id: 'd_2', accountId: 'a_1', userId: 'u_2', fullName: 'Amit Patel', phoneNumber: '+91 98765 00002', licenseNumber: 'DL02', dutyStatus: 'ON_DUTY' as any },
-        },
-      ]
-    : [];
-
-  // When a completely new Host creates an account, they start with 0 events
-  if (events.length === 0 || !activeEvent) {
-    return (
-      <div className="max-w-2xl mx-auto py-16 space-y-6">
-        <div className="p-8 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm text-center space-y-5">
-          <div className="w-16 h-16 rounded-3xl bg-safar-50 text-safar-700 mx-auto flex items-center justify-center">
-            <CalendarPlus className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-1.5">
-            <h1 className="text-2xl font-black text-charcoal-900 tracking-tight">
-              {formatHostGreeting(profile?.fullName, currentDate)}
-            </h1>
-            <p className="text-xs sm:text-sm text-charcoal-500 max-w-md mx-auto">
-              Ready to manage your event? Let&apos;s set up your first event. You will configure ceremonies, transport locations, vehicles, drivers, and guest rules in a guided 10-step wizard.
-            </p>
-          </div>
-
-          {/* Zero metrics indicator */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
-            {[
-              { label: 'Events', value: '0' },
-              { label: 'Guests', value: '0' },
-              { label: 'Drivers', value: '0' },
-              { label: 'Vehicles', value: '0' },
-              { label: 'Bookings', value: '0' },
-              { label: 'Trips', value: '0' },
-            ].map((m, i) => (
-              <div key={i} className="p-2.5 rounded-xl bg-charcoal-50 border border-charcoal-100 text-center">
-                <div className="text-base font-bold text-charcoal-900">{m.value}</div>
-                <div className="text-[10px] text-charcoal-400 font-medium">{m.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-2">
-            <button
-              onClick={() => setIsWizardOpen(true)}
-              className="px-6 py-3 rounded-2xl bg-safar-600 hover:bg-safar-700 text-white font-bold text-xs shadow-md shadow-safar-600/30 transition-all inline-flex items-center gap-2 active:scale-[0.98]"
-            >
-              <Plus className="w-4 h-4" />
-              Create Your First Event
-            </button>
-          </div>
-        </div>
-
-        <EventWizardModal
-          isOpen={isWizardOpen}
-          onClose={() => setIsWizardOpen(false)}
-          onCreated={handleEventCreated}
-        />
-      </div>
-    );
-  }
-
-  const greetingHeadline = formatHostGreeting(profile?.fullName, currentDate);
+  const getFunctionBadgeVariant = (type: string) => {
+    const t = (type || '').toUpperCase();
+    if (t.includes('SANGEET')) return 'sangeet';
+    if (t.includes('MEHNDI')) return 'mehndi';
+    if (t.includes('HALDI')) return 'haldi';
+    if (t.includes('WEDDING')) return 'wedding';
+    if (t.includes('RECEPTION')) return 'reception';
+    return 'custom';
+  };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Top Welcome Title & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-charcoal-900 tracking-tight">
-            {greetingHeadline}
+    <div className="max-w-7xl mx-auto space-y-7 animate-in fade-in duration-300">
+      {/* Top Banner: Printed Editorial Invitation Banner */}
+      <div className="p-6 md:p-8 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+        {/* Subtle Decorative Botanical Flourish Background Accent */}
+        <div className="absolute right-4 -bottom-6 pointer-events-none opacity-20">
+          <OliveBranch className="w-36 h-36 text-sage-600" />
+        </div>
+
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-2 font-sans">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-warm-100 text-charcoal-800 border border-warm-300/80">
+              <StarFlourish className="w-2.5 h-2.5 text-gold-600" />
+              <span>SAFAR Host Control</span>
+            </span>
+            <span className="text-xs text-charcoal-400 font-medium">
+              {currentDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+          </div>
+
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-charcoal-900 tracking-tight font-serif leading-tight">
+            {formatHostGreeting(profile?.fullName, currentDate)}
           </h1>
-          <p className="text-xs text-charcoal-500 mt-0.5">
-            Ready to manage your event?
+          <p className="mt-1 text-xs md:text-sm text-charcoal-600 max-w-xl font-sans">
+            Plan and manage every journey for your celebration with bespoke hospitality and live fleet control.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-charcoal-200 bg-white hover:bg-charcoal-50 text-charcoal-800 font-semibold text-xs transition-all shadow-xs"
-          >
-            <Edit3 className="w-3.5 h-3.5 text-charcoal-500" />
-            Edit Event Details
-          </button>
+        <div className="flex items-center gap-3 shrink-0 relative z-10">
+          {events.length > 0 && (
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-4 py-2.5 rounded-full border border-warm-300 bg-warm-50/80 hover:bg-warm-100 text-xs font-bold text-charcoal-800 flex items-center gap-2 shadow-2xs transition-all font-sans"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-terracotta-600" />
+              <span>Upload Guest Excel</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsWizardOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-safar-600 hover:bg-safar-700 text-white font-semibold text-xs transition-all shadow-sm shadow-safar-600/20 active:scale-[0.98]"
+            className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-warm-50 hover:text-white text-xs md:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 transition-all transform hover:-translate-y-0.5 font-sans"
           >
-            <Plus className="w-4 h-4" />
-            Create New Event
+            <CalendarPlus className="w-4 h-4 text-gold-400" />
+            <span>Create Function</span>
           </button>
         </div>
       </div>
 
-      {/* Active Event Header Banner Card */}
-      <div className="relative rounded-3xl overflow-hidden bg-charcoal-900 text-white p-6 shadow-sm">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=80)',
-          }}
-        />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-semibold border border-emerald-500/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live Active Event
-            </div>
-            <h2 className="text-xl md:text-2xl font-bold tracking-tight">
-              {activeEvent.name}
-            </h2>
-            <p className="text-xs text-charcoal-300">
-              {activeEvent.city} &bull; {new Date(activeEvent.startDate).toLocaleDateString()} &ndash; {new Date(activeEvent.endDate).toLocaleDateString()}
-            </p>
-          </div>
+      {/* Real Database KPI Metrics */}
+      <KpiCards stats={stats} />
 
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-2 rounded-2xl bg-charcoal-800/80 backdrop-blur-md border border-white/10 text-xs flex items-center gap-2">
-              <span className="text-charcoal-400">Join Code: </span>
-              <strong className="text-white font-mono tracking-widest text-sm">{activeEvent.joinCode}</strong>
-            </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(activeEvent.joinCode);
-                alert(`Event Join Code ${activeEvent.joinCode} copied to clipboard!`);
-              }}
-              className="px-3 py-2 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              Share
-            </button>
+      {/* Function / Events Overview Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-warm-200/80 pb-3">
+          <div className="flex items-center gap-2">
+            <StarFlourish className="w-3 h-3 text-gold-600" />
+            <h2 className="text-lg md:text-xl font-serif font-bold text-charcoal-900">
+              Ceremonies & Functions
+            </h2>
+            <span className="text-xs text-charcoal-400 font-sans hidden sm:inline">
+              — Distinct records with dedicated guest lists and transportation rules
+            </span>
           </div>
+          <Link
+            href="/host/events"
+            className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 font-sans"
+          >
+            View All ({events.length})
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {events.length === 0 ? (
+          <SafarEmptyState
+            title="No Functions Created Yet"
+            description="Your celebration starts with your first ceremony. Create Sangeet, Mehndi, Haldi, Wedding Rituals, or Reception to begin allocating family transport."
+            actionText="Plan Your First Function"
+            onAction={() => setIsWizardOpen(true)}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {events.slice(0, 6).map((ev) => {
+              const tr = ev.transportRequirements;
+              const badgeVariant = getFunctionBadgeVariant(ev.eventType);
+
+              return (
+                <div
+                  key={ev.id}
+                  className="p-5 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <SafarBadge variant={badgeVariant as any} size="sm">
+                        {ev.eventType || 'FUNCTION'}
+                      </SafarBadge>
+                      <span className="text-[11px] text-charcoal-400 font-mono">
+                        Code: {ev.joinCode}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-serif font-bold text-charcoal-900 tracking-tight">
+                        {ev.name}
+                      </h3>
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-500 font-sans">
+                        <MapPin className="w-3.5 h-3.5 text-gold-600 shrink-0" />
+                        <span className="truncate">{ev.venueName || ev.city}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-warm-50/70 border border-warm-200/80 grid grid-cols-2 gap-2 text-xs font-sans">
+                      <div>
+                        <span className="text-[10px] text-charcoal-400 font-medium block">Date & Time</span>
+                        <span className="font-semibold text-charcoal-800 truncate block">
+                          {new Date(ev.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                        <span className="text-[11px] text-charcoal-500">
+                          {ev.startTime ? `${ev.startTime} – ${ev.endTime || ''}` : 'Scheduled'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-charcoal-400 font-medium block">Guests & Fleet</span>
+                        <span className="font-semibold text-charcoal-800 block">
+                          {ev.guestCount || 0} Guests
+                        </span>
+                        <span className="text-[11px] text-terracotta-700 font-medium">
+                          {tr ? `${tr.numberOfVehicles || 1} ${tr.vehicleType || 'Vehicles'}` : 'Transport Ready'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-warm-100 flex items-center justify-between font-sans">
+                    <Link
+                      href={`/host/guests?eventId=${ev.id}`}
+                      className="text-xs font-bold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Guests ({ev.guestCount || 0})</span>
+                    </Link>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setActiveEvent(ev);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-full text-charcoal-400 hover:text-charcoal-800 hover:bg-warm-100 transition-colors"
+                        title="Edit Function"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <Link
+                        href={`/host/events?eventId=${ev.id}`}
+                        className="px-3.5 py-1 rounded-full bg-charcoal-900 text-white text-xs font-semibold hover:bg-charcoal-800 transition-colors shadow-2xs"
+                      >
+                        Manage
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Grid: Upcoming Trips & Fleet Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <UpcomingTripsTable
+            trips={trips.map((t) => ({
+              id: t.id,
+              eventId: t.eventId,
+              originPlaceId: '',
+              destinationPlaceId: '',
+              scheduledPickupTime: t.scheduledPickupTime,
+              status: t.status as TripStatus,
+              origin: { name: t.originName, address: '', latitude: 0, longitude: 0, type: 'HOTEL', id: '', eventId: '' },
+              destination: { name: t.destinationName, address: '', latitude: 0, longitude: 0, type: 'VENUE', id: '', eventId: '' },
+              vehicle: t.vehicleModel ? { model: t.vehicleModel, plateNumber: t.vehiclePlate, id: '', accountId: '', category: 'SEDAN' as any, capacity: 4, isActive: true } : undefined,
+              driver: t.driverName ? { fullName: t.driverName, phoneNumber: t.driverPhone, id: '', accountId: '', userId: '', licenseNumber: '', dutyStatus: 'ON_DUTY' as any } : undefined,
+            }))}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <LiveFleetMapCard />
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <KpiCards stats={stats} />
-
-      {/* Upcoming Trips Table */}
-      <UpcomingTripsTable
-        trips={trips}
-        onViewAll={() => alert('Viewing all trips')}
-        onCreateTrip={() => setIsWizardOpen(true)}
-      />
-
-      {/* Live Fleet Tracking Map Card */}
-      <LiveFleetMapCard onOpenLiveMap={() => alert('Opening live full map modal')} />
-
-      {/* Quick Actions Bar */}
-      <QuickActionsBar
-        onOpenWizard={() => setIsWizardOpen(true)}
-        onAddVehicle={() => alert('Add Vehicle dialog')}
-        onInviteGuests={() => alert(`Share Code: ${activeEvent.joinCode}`)}
-        onViewReports={() => alert('Generating transportation manifest report')}
-      />
-
-      {/* 10-Step Guided Event Wizard Modal */}
+      {/* Modals */}
       <EventWizardModal
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
         onCreated={handleEventCreated}
       />
 
-      {/* Edit Event Details Modal */}
-      <EditEventModal
-        isOpen={isEditModalOpen}
-        event={activeEvent}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleEventUpdated}
-      />
+      {activeEvent && (
+        <EditEventModal
+          isOpen={isEditModalOpen}
+          event={activeEvent}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={handleEventUpdated}
+        />
+      )}
+
+      {activeEvent && (
+        <GuestExcelImportModal
+          isOpen={isImportModalOpen}
+          eventId={activeEvent.id}
+          eventName={activeEvent.name}
+          onClose={() => setIsImportModalOpen(false)}
+          onImportSuccess={fetchHostData}
+        />
+      )}
     </div>
   );
 }

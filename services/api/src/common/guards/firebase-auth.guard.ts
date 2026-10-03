@@ -111,26 +111,54 @@ export class FirebaseAuthGuard implements CanActivate {
       });
 
       if (!user) {
-        // Auto-provision user on first authenticated call
-        user = await this.prisma.user.create({
-          data: {
-            firebaseUid,
-            email,
-            phoneNumber,
-            fullName: name,
-            role: 'GUEST',
-          },
-          include: {
-            accountMembers: {
-              include: { account: true },
+        // If not found by firebaseUid, look up existing user by email
+        if (email) {
+          user = await this.prisma.user.findFirst({
+            where: { email: { equals: email.toLowerCase().trim(), mode: 'insensitive' } },
+            include: {
+              accountMembers: {
+                include: { account: true },
+              },
+              eventMembers: {
+                include: { event: true },
+              },
+              drivers: true,
+              guests: true,
             },
-            eventMembers: {
-              include: { event: true },
+          });
+
+          if (user) {
+            // Safely sync firebaseUid to existing user record
+            await this.prisma.user.update({
+              where: { id: user.id },
+              data: { firebaseUid },
+            });
+            user.firebaseUid = firebaseUid;
+          }
+        }
+
+        if (!user) {
+          // Auto-provision user on first authenticated call only if user doesn't exist
+          user = await this.prisma.user.create({
+            data: {
+              firebaseUid,
+              email: email ? email.toLowerCase().trim() : null,
+              phoneNumber,
+              fullName: name,
+              role: 'GUEST',
             },
-            drivers: true,
-            guests: true,
-          },
-        });
+            include: {
+              accountMembers: {
+                include: { account: true },
+              },
+              eventMembers: {
+                include: { event: true },
+              },
+              drivers: true,
+              guests: true,
+            },
+          });
+        }
       }
     } catch (dbError) {
       // In-memory fallback if database is currently warming up

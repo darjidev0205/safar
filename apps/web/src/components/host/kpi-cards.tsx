@@ -1,76 +1,111 @@
 'use client';
 
 import React from 'react';
-import { Users, BookMarked, Route, Car, TrendingUp, Radio } from 'lucide-react';
-import { DashboardStats } from '@safar/types';
+import { Users, Home, Car, UserCheck, Clock, ShieldCheck } from 'lucide-react';
+import { StarFlourish } from '../ui/botanical-ornaments';
+
+export interface HostKpiStats {
+  totalGuests: number;
+  families: number;
+  vehiclesRequired: number;
+  guestsAssigned: number;
+  guestsPending: number;
+  driversAssigned: number;
+  activeTrips?: number;
+  totalFleetVehicles?: number;
+  totalFleetDrivers?: number;
+}
 
 interface KpiCardsProps {
-  stats: DashboardStats;
+  stats: HostKpiStats;
 }
 
 export function KpiCards({ stats }: KpiCardsProps) {
   const cards = [
     {
       title: 'Total Guests',
-      value: stats.totalGuests.toString(),
-      trend: stats.totalGuests > 0 ? '+12 this week' : 'No guests yet',
+      value: (stats.totalGuests || 0).toLocaleString(),
+      trend: stats.totalGuests > 0 ? 'Confirmed in database' : 'No guests yet',
       icon: Users,
-      trendColor: 'text-emerald-600',
+      color: 'text-safar-800',
+      bgColor: 'bg-safar-50 border border-safar-200/80',
     },
     {
-      title: 'Total Bookings',
-      value: stats.totalBookings.toString(),
-      trend: stats.totalBookings > 0 ? '+18% this week' : 'No bookings yet',
-      icon: BookMarked,
-      trendColor: 'text-emerald-600',
+      title: 'Families',
+      value: (stats.families || 0).toLocaleString(),
+      trend: stats.families > 0 ? `${stats.families} registered family groups` : 'No families yet',
+      icon: Home,
+      color: 'text-terracotta-800',
+      bgColor: 'bg-terracotta-50 border border-terracotta-200/80',
     },
     {
-      title: 'Active Trips',
-      value: stats.activeTrips.toString(),
-      trend: stats.activeTrips > 0 ? 'Live now' : 'Idle',
-      icon: Route,
-      trendColor: stats.activeTrips > 0 ? 'text-teal-600' : 'text-charcoal-400',
-      badgeDot: stats.activeTrips > 0,
-    },
-    {
-      title: 'Vehicles On Duty',
-      value: `${stats.vehiclesOnDuty} / ${stats.totalVehicles || 0}`,
+      title: 'Vehicles Needed',
+      value: (stats.vehiclesRequired || 0).toString(),
       trend:
-        stats.totalVehicles > 0
-          ? `${Math.round((stats.vehiclesOnDuty / stats.totalVehicles) * 100)}% utilized`
-          : 'Fleet unassigned',
+        stats.totalFleetVehicles !== undefined
+          ? `${stats.totalFleetVehicles} available in fleet`
+          : 'Based on guest counts',
       icon: Car,
-      trendColor: 'text-charcoal-600',
+      color: 'text-gold-700',
+      bgColor: 'bg-amber-50 border border-gold-300/80',
+    },
+    {
+      title: 'Guests Assigned',
+      value: (stats.guestsAssigned || 0).toLocaleString(),
+      trend:
+        stats.totalGuests > 0
+          ? `${Math.round(((stats.guestsAssigned || 0) / stats.totalGuests) * 100)}% allocated`
+          : 'Pending allocation',
+      icon: UserCheck,
+      color: 'text-sage-800',
+      bgColor: 'bg-sage-50 border border-sage-200/80',
+    },
+    {
+      title: 'Guests Pending',
+      value: (stats.guestsPending || 0).toLocaleString(),
+      trend: (stats.guestsPending || 0) > 0 ? 'Awaiting vehicle assignment' : 'All guests assigned',
+      icon: Clock,
+      color: (stats.guestsPending || 0) > 0 ? 'text-burgundy-800' : 'text-charcoal-400',
+      bgColor: (stats.guestsPending || 0) > 0 ? 'bg-burgundy-50 border border-burgundy-200/80' : 'bg-warm-50 border border-warm-200',
+    },
+    {
+      title: 'Active Chauffeurs',
+      value: (stats.driversAssigned || 0).toString(),
+      trend:
+        stats.totalFleetDrivers !== undefined
+          ? `${stats.totalFleetDrivers} total drivers on roster`
+          : 'Assigned on duties',
+      icon: ShieldCheck,
+      color: 'text-charcoal-800',
+      bgColor: 'bg-warm-100 border border-warm-300/80',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
       {cards.map((card, idx) => {
         const Icon = card.icon;
         return (
           <div
             key={idx}
-            className="p-5 rounded-2xl bg-white border border-charcoal-200/80 shadow-xs hover:shadow-sm transition-all"
+            className="p-4 rounded-2xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between text-charcoal-500 mb-3">
-              <span className="text-xs font-semibold text-charcoal-500">{card.title}</span>
-              <div className="w-8 h-8 rounded-xl bg-charcoal-50 flex items-center justify-center text-charcoal-700">
-                <Icon className="w-4 h-4" />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold text-charcoal-500 uppercase tracking-wider truncate font-sans">
+                {card.title}
+              </span>
+              <div className={`w-7 h-7 rounded-xl ${card.bgColor} flex items-center justify-center ${card.color} shrink-0`}>
+                <Icon className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="flex items-baseline justify-between">
-              <div className="text-2xl lg:text-3xl font-bold text-charcoal-900 font-sans tracking-tight">
+            <div>
+              <div className="text-2xl md:text-3xl font-bold text-charcoal-900 font-serif tracking-tight">
                 {card.value}
               </div>
-            </div>
-
-            <div className="mt-2 flex items-center gap-1.5 text-xs">
-              {card.badgeDot && (
-                <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
-              )}
-              <span className={`font-medium ${card.trendColor}`}>{card.trend}</span>
+              <div className="mt-1 text-[11px] text-charcoal-500 truncate font-medium font-sans">
+                {card.trend}
+              </div>
             </div>
           </div>
         );

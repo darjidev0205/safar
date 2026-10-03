@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   Plus,
@@ -8,261 +8,398 @@ import {
   Users,
   Car,
   KeyRound,
-  ExternalLink,
   CalendarPlus,
   Edit2,
   Trash2,
   AlertTriangle,
   Check,
+  Clock,
+  Copy,
+  ChevronRight,
 } from 'lucide-react';
 import { EventWizardModal } from '../../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../../components/host/edit-event-modal';
-import { EmptyState } from '../../../components/ui/empty-state';
+import { useAuth } from '../../../context/auth-context';
+import { StarFlourish, MarigoldFlower } from '../../../components/ui/botanical-ornaments';
+import { SafarBadge, SafarButton, SafarEmptyState } from '../../../components/ui/safar-design-system';
 import Link from 'next/link';
-import { EventModel } from '@safar/types';
 
 export default function HostEventsPage() {
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const { profile } = useAuth();
   const [events, setEvents] = useState<any[]>([]);
-  const [editingEvent, setEditingEvent] = useState<EventModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState('ALL');
+
+  // Modals
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('safar_host_events');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setEvents(parsed);
-            return;
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      if (isDemoMode) {
-        setEvents([
-          {
-            id: 'ev_1',
-            name: 'Aarav & Diya Wedding',
-            city: 'Ahmedabad',
-            dates: '14–17 Nov 2026',
-            startDate: '2026-11-14T09:00:00.000Z',
-            endDate: '2026-11-17T23:00:00.000Z',
-            joinCode: 'ADW26X',
-            status: 'ACTIVE',
-            guestsCount: 186,
-            vehiclesCount: 12,
-            tripsCount: 24,
-          },
-        ]);
-      }
-    }
-  }, [isDemoMode]);
-
-  const saveEvents = (updated: any[]) => {
-    setEvents(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safar_host_events', JSON.stringify(updated));
-    }
-  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleEventCreated = (newEvent: EventModel) => {
-    const updated = [newEvent, ...events];
-    saveEvents(updated);
-    showToast(`Created event ${newEvent.name}!`);
+  const fetchEvents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      const res = await fetch('/api/events', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.events)) {
+          setEvents(data.events);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const handleDuplicate = async (event: any) => {
+    try {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      const res = await fetch(`/api/events/${event.id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Duplicated "${event.name}" successfully.`);
+        fetchEvents();
+      } else {
+        showToast(data?.error?.message || 'Failed to duplicate event');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error duplicating event');
+    }
   };
 
-  const handleEventSaved = (updatedEvent: EventModel) => {
-    const updated = events.map((ev) => (ev.id === updatedEvent.id ? { ...ev, ...updatedEvent } : ev));
-    saveEvents(updated);
-    showToast(`Updated event ${updatedEvent.name}.`);
+  const handleDelete = async () => {
+    if (!deletingEvent) return;
+    try {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      const res = await fetch(`/api/events/${deletingEvent.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Deleted "${deletingEvent.name}".`);
+        setDeletingEvent(null);
+        fetchEvents();
+      } else {
+        showToast(data?.error?.message || 'Failed to delete event');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error deleting event');
+    }
+  };
+
+  const filteredEvents = events.filter((ev) => {
+    if (filterType === 'ALL') return true;
+    return (ev.eventType || '').toUpperCase() === filterType.toUpperCase();
+  });
+
+  const getFunctionBadgeVariant = (type: string) => {
+    const t = (type || '').toUpperCase();
+    if (t.includes('SANGEET')) return 'sangeet';
+    if (t.includes('MEHNDI')) return 'mehndi';
+    if (t.includes('HALDI')) return 'haldi';
+    if (t.includes('WEDDING')) return 'wedding';
+    if (t.includes('RECEPTION')) return 'reception';
+    return 'custom';
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-charcoal-900 text-white text-xs font-semibold shadow-xl flex items-center gap-2 animate-in slide-in-from-top-3">
+        <div className="fixed top-6 right-6 z-50 px-4 py-2.5 rounded-full bg-charcoal-900 text-warm-50 text-xs font-semibold shadow-xl flex items-center gap-2 animate-in slide-in-from-top-3 border border-warm-300">
           <Check className="w-4 h-4 text-emerald-400" />
-          {toastMessage}
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      {/* Top Banner Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-warm-200/80 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-charcoal-900 tracking-tight">Events Management</h1>
-          <p className="text-xs text-charcoal-500 mt-0.5">
-            Organize multi-day event transportation, ceremony venues, and passenger groups.
+          <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase text-gold-700 mb-1 font-sans">
+            <StarFlourish className="w-2.5 h-2.5 text-gold-600" />
+            <span>Ceremony Mapping & Fleet Manifests</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-charcoal-900 tracking-tight">
+            Functions & Events Management
+          </h1>
+          <p className="text-xs sm:text-sm text-charcoal-600 mt-1 max-w-2xl font-sans">
+            Manage your individual functions (Sangeet, Mehndi, Haldi, Wedding Ceremony, Reception) with dedicated guest lists, Google Maps locations, and transport requirements.
           </p>
         </div>
+
         <button
           onClick={() => setIsWizardOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-safar-600 hover:bg-safar-700 text-white font-semibold text-xs transition-all shadow-sm shadow-safar-600/20 active:scale-[0.98]"
+          className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-warm-50 text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 self-start sm:self-auto transition-all font-sans"
         >
-          <Plus className="w-4 h-4" />
-          Create Event Wizard
+          <CalendarPlus className="w-4 h-4 text-gold-400" />
+          <span>Create Function</span>
         </button>
       </div>
 
-      {events.length === 0 ? (
-        <div className="py-12 max-w-lg mx-auto">
-          <EmptyState
-            icon={CalendarPlus}
-            title="No Events Created Yet"
-            description="You have 0 active events. Launch the guided 10-step wizard to set up your first event transportation workspace."
-            actionLabel="Create Your First Event"
-            onAction={() => setIsWizardOpen(true)}
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {events.map((ev) => (
-            <div
-              key={ev.id}
-              className="p-6 rounded-3xl bg-white border border-charcoal-200/80 shadow-xs space-y-4 hover:border-safar-300 transition-all flex flex-col justify-between"
+      {/* Filter Tabs by Function Type */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 font-sans">
+        {['ALL', 'SANGEET', 'MEHNDI', 'HALDI', 'WEDDING', 'RECEPTION', 'CUSTOM'].map((t) => {
+          const isActive = filterType === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setFilterType(t)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                isActive
+                  ? 'bg-charcoal-900 text-white shadow-2xs'
+                  : 'bg-white/90 text-charcoal-700 hover:bg-warm-100/70 border border-warm-300/80'
+              }`}
             >
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
-                      {ev.status || 'ACTIVE'}
-                    </span>
-                    <h3 className="text-lg font-bold text-charcoal-900">{ev.name}</h3>
-                    <p className="text-xs text-charcoal-500">
-                      {ev.city} &bull; {ev.dates || (ev.startDate ? new Date(ev.startDate).toLocaleDateString() : 'Upcoming')}
-                    </p>
-                  </div>
+              {t === 'ALL' ? 'All Ceremonies' : t}
+            </button>
+          );
+        })}
+      </div>
 
-                  <div className="p-2.5 rounded-2xl bg-warm-100 border border-charcoal-200 text-center">
-                    <span className="text-[10px] font-bold text-charcoal-500 block">JOIN CODE</span>
-                    <span className="text-base font-mono font-bold text-safar-700">{ev.joinCode}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-charcoal-100 text-xs text-charcoal-600">
-                  <div className="flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-charcoal-400" />
-                    <span>{ev.guestsCount || 0} Guests</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Car className="w-4 h-4 text-charcoal-400" />
-                    <span>{ev.vehiclesCount || 0} Vehicles</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-charcoal-400" />
-                    <span>{ev.tripsCount || 0} Trips</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-charcoal-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/host"
-                    className="text-xs font-semibold text-safar-700 hover:text-safar-800 flex items-center gap-1"
-                  >
-                    Open Operations &rarr;
-                  </Link>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(ev.joinCode);
-                      showToast(`Event Code ${ev.joinCode} copied!`);
-                    }}
-                    className="text-xs text-charcoal-500 hover:text-charcoal-800 font-medium px-2 py-1 rounded-lg hover:bg-charcoal-100"
-                  >
-                    Copy Code
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingEvent(ev);
-                      setIsEditModalOpen(true);
-                    }}
-                    className="p-1.5 text-charcoal-500 hover:text-charcoal-800 rounded-lg hover:bg-charcoal-100"
-                    title="Edit Event"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeletingEvent(ev)}
-                    className="p-1.5 text-charcoal-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                    title="Delete Event"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Empty State */}
+      {events.length === 0 && !loading && (
+        <SafarEmptyState
+          title="No Ceremonies Planned Yet"
+          description="Your celebration starts with your first ceremony. Create Sangeet, Mehndi, Haldi, Wedding Rituals, or Reception to begin allocating family transport."
+          actionText="Create Ceremony"
+          onAction={() => setIsWizardOpen(true)}
+        />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Events Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredEvents.map((event) => {
+          const tr = event.transportRequirements;
+          const startDateObj = new Date(event.startDate);
+          const formattedDate = !isNaN(startDateObj.getTime())
+            ? startDateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+            : 'Scheduled';
+
+          const timeString = event.startTime
+            ? `${event.startTime} – ${event.endTime || 'End'}`
+            : 'All Day';
+
+          const badgeVariant = getFunctionBadgeVariant(event.eventType);
+
+          return (
+            <div
+              key={event.id}
+              className="p-6 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
+            >
+              {/* Card Header */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <SafarBadge variant={badgeVariant as any} size="sm">
+                    {event.eventType || 'FUNCTION'}
+                  </SafarBadge>
+                  <div className="flex items-center gap-1.5 text-xs font-mono text-charcoal-500 bg-warm-50 px-2.5 py-0.5 rounded-full border border-warm-200/80">
+                    <KeyRound className="w-3 h-3 text-gold-600" />
+                    <span>{event.joinCode}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-serif font-bold text-charcoal-900 tracking-tight">
+                    {event.name}
+                  </h3>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-600 font-sans">
+                    <Calendar className="w-3.5 h-3.5 text-gold-600 shrink-0" />
+                    <span>{formattedDate}</span>
+                    <span>•</span>
+                    <Clock className="w-3.5 h-3.5 text-charcoal-400 shrink-0" />
+                    <span>{timeString}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-500 font-sans">
+                    <MapPin className="w-3.5 h-3.5 text-charcoal-400 shrink-0" />
+                    <span className="truncate">{event.venueName || event.city}</span>
+                  </div>
+                </div>
+
+                {/* Key Metrics Strip */}
+                <div className="p-3.5 rounded-2xl bg-warm-50/70 border border-warm-200/80 grid grid-cols-3 gap-2 text-center text-xs font-sans">
+                  <div>
+                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Guests</span>
+                    <span className="font-serif font-bold text-charcoal-900 text-sm">{event.guestCount || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Vehicles</span>
+                    <span className="font-serif font-bold text-charcoal-900 text-sm">
+                      {tr?.numberOfVehicles || 0}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Trips</span>
+                    <span className="font-serif font-bold text-charcoal-900 text-sm">{event.tripsCount || 0}</span>
+                  </div>
+                </div>
+
+                {/* Transport Status Badge */}
+                <div className="text-xs text-charcoal-600 flex items-center justify-between p-2.5 rounded-xl bg-warm-50/60 border border-warm-100 font-sans">
+                  <div className="flex items-center gap-2">
+                    <Car className="w-4 h-4 text-terracotta-700" />
+                    <span className="font-medium text-[11px]">
+                      {tr ? `${tr.vehicleType || 'Fleet'} • ${tr.pickupRequired ? 'Pickup' : ''} ${tr.dropRequired ? '& Drop' : ''}` : 'No transport configured'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-sage-800 bg-sage-50 px-2.5 py-0.5 rounded-full border border-sage-200">
+                    Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-5 pt-3.5 border-t border-warm-100 space-y-2.5 font-sans">
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    href={`/host/guests?eventId=${event.id}`}
+                    className="px-3 py-2 rounded-full bg-warm-50 hover:bg-warm-100 text-charcoal-800 text-xs font-bold text-center border border-warm-300 flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <Users className="w-3.5 h-3.5 text-terracotta-600" />
+                    <span>Guests ({event.guestCount || 0})</span>
+                  </Link>
+
+                  <button
+                    onClick={() => {
+                      setEditingEvent(event);
+                      setIsEditModalOpen(true);
+                    }}
+                    className="px-3 py-2 rounded-full bg-white hover:bg-warm-50 text-charcoal-700 text-xs font-semibold text-center border border-warm-200 flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit Ceremony</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={() => handleDuplicate(event)}
+                    className="text-[11px] font-semibold text-charcoal-500 hover:text-charcoal-800 flex items-center gap-1"
+                    title="Duplicate this ceremony"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Duplicate</span>
+                  </button>
+
+                  <button
+                    onClick={() => setDeletingEvent(event)}
+                    className="text-[11px] font-semibold text-burgundy-600 hover:text-burgundy-800 flex items-center gap-1"
+                    title="Delete function"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Delete Confirmation Dialog */}
       {deletingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-charcoal-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
-            <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-warm-200 shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-burgundy-50 border border-burgundy-200 text-burgundy-700 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-charcoal-900">Delete {deletingEvent.name}?</h3>
-              <p className="text-xs text-charcoal-500 mt-1">
-                This will delete the event, including all associated ceremonies, guest rosters, and scheduled trips.
+              <h3 className="text-base font-serif font-bold text-charcoal-900">Delete Ceremony?</h3>
+              <p className="text-xs text-charcoal-600 mt-1 font-sans">
+                Are you sure you want to delete <span className="font-bold text-charcoal-800">{deletingEvent.name}</span>? This will remove associated guest manifests and transport requirements from your database.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-2 font-sans">
               <button
-                type="button"
                 onClick={() => setDeletingEvent(null)}
-                className="px-3 py-1.5 rounded-xl border border-charcoal-200 text-xs font-semibold text-charcoal-600"
+                className="px-4 py-2 rounded-full border border-warm-300 text-xs font-semibold text-charcoal-700 hover:bg-warm-100"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={() => {
-                  const updated = events.filter((e) => e.id !== deletingEvent.id);
-                  saveEvents(updated);
-                  setDeletingEvent(null);
-                  showToast('Event deleted.');
-                }}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-full bg-burgundy-800 hover:bg-burgundy-900 text-white text-xs font-bold shadow-xs"
               >
-                Delete Event
+                Delete Ceremony
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Create Event Modal */}
       <EventWizardModal
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
-        onCreated={handleEventCreated}
+        onCreated={() => {
+          showToast('New function created successfully!');
+          fetchEvents();
+        }}
       />
 
-      <EditEventModal
-        isOpen={isEditModalOpen}
-        event={editingEvent}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleEventSaved}
-      />
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <EditEventModal
+          isOpen={isEditModalOpen}
+          event={editingEvent}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingEvent(null);
+          }}
+          onSave={() => {
+            showToast('Function updated successfully.');
+            fetchEvents();
+          }}
+        />
+      )}
     </div>
   );
 }

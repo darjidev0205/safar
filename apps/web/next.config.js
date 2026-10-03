@@ -10,6 +10,14 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/events/:path*',
+        destination: '/api/events/:path*',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

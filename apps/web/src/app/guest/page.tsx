@@ -5,258 +5,454 @@ import Link from 'next/link';
 import {
   Car,
   Clock,
-  Info,
-  LifeBuoy,
+  MapPin,
+  Users,
   Copy,
-  CheckCircle2,
-  QrCode,
+  Check,
   ArrowRight,
   KeyRound,
-  MapPin,
+  Sparkles,
+  PhoneCall,
+  Compass,
+  Calendar,
+  ShieldCheck,
+  QrCode,
+  Loader2,
 } from 'lucide-react';
-import { StatusBadge } from '../../components/ui/status-badge';
-import { EmptyState } from '../../components/ui/empty-state';
+import {
+  MarigoldFlower,
+  OliveBranch,
+  JasmineBloom,
+  StarFlourish,
+  FloralDivider,
+} from '../../components/ui/botanical-ornaments';
 import { useAuth } from '../../context/auth-context';
 
 export default function GuestHomePage() {
   const { profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [joinedEvent, setJoinedEvent] = useState<any>(null);
-  const [showBoardingModal, setShowBoardingModal] = useState(false);
+  const [greeting, setGreeting] = useState('Welcome');
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Check demo mode environment configuration
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
+  // 1. Time-based dynamic personalized greeting
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('safar_guest_event');
-      if (stored) {
+    const hour = new Date().getHours();
+    if (hour >= 4 && hour < 12) {
+      setGreeting('Good Morning');
+    } else if (hour >= 12 && hour < 17) {
+      setGreeting('Good Afternoon');
+    } else if (hour >= 17 && hour < 22) {
+      setGreeting('Good Evening');
+    } else {
+      setGreeting('Good Night');
+    }
+  }, []);
+
+  // 2. Fetch live guest dashboard data from real database API
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      // Check for stored event code if any
+      const storedEvent =
+        typeof window !== 'undefined' ? localStorage.getItem('safar_guest_event') : null;
+      let codeParam = '';
+      if (storedEvent) {
         try {
-          const parsed = JSON.parse(stored);
-          if (parsed && parsed.name) {
-            setJoinedEvent(parsed);
-            return;
+          const parsed = JSON.parse(storedEvent);
+          if (parsed.joinCode || parsed.code) {
+            codeParam = `?eventCode=${parsed.joinCode || parsed.code}`;
           }
         } catch (e) {
           // ignore
         }
       }
 
-      // If demo mode is explicitly enabled, provide sample joined event
-      if (isDemoMode) {
-        setJoinedEvent({
-          name: 'Aarav & Diya Wedding',
-          city: 'Ahmedabad',
-          dates: '14–17 Nov 2026',
-          code: 'ADW26X',
-        });
+      const res = await fetch(`/api/guest/dashboard${codeParam}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+          ...(profile?.email ? { 'x-user-email': profile.email } : {}),
+        },
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setDashboardData(json);
       }
-    }
-  }, [isDemoMode]);
-
-  const nextRide = {
-    time: 'Today • 10:30 AM',
-    pickup: 'The Grand Hotel',
-    destination: 'The Celebration Venue',
-    category: 'Sedan',
-    seats: 4,
-    status: 'ON_TIME',
-    duration: '6 min',
-    distance: '1.8 km',
-    boardingCode: '4827',
-  };
-
-  const handleCopyCode = () => {
-    if (joinedEvent?.code) {
-      navigator.clipboard.writeText(joinedEvent.code);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
+    } catch (err) {
+      console.error('Failed to load guest dashboard:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // If new guest has not joined an event yet
-  if (!joinedEvent) {
+  useEffect(() => {
+    fetchDashboardData();
+  }, [profile]);
+
+  const handleCopyCode = (code: string) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleJoinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = joinCodeInput.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    setJoining(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch(`/api/guest/dashboard?eventCode=${cleanCode}`, {
+        headers: {
+          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
+          ...(profile?.email ? { 'x-user-email': profile.email } : {}),
+        },
+      });
+      const data = await res.json();
+      if (data.success && data.hasEvent) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safar_guest_event', JSON.stringify(data.event));
+        }
+        setDashboardData(data);
+      } else {
+        setErrorMsg('Wedding event code not found. Please verify with the host.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Could not verify code');
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="py-12 max-w-md mx-auto space-y-4">
-        <EmptyState
-          icon={KeyRound}
-          title="Join an Event"
-          description="Enter the 6-character event code from your wedding or celebration invitation to access shuttle schedules, book private transit, and track vehicles live."
-          actionLabel="Enter Event Code"
-          onAction={() => window.location.href = '/guest/join'}
-        />
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+        <Loader2 className="w-8 h-8 text-terracotta-600 animate-spin" />
+        <span className="text-xs font-semibold text-charcoal-500 uppercase tracking-widest mt-3">
+          Loading Ceremonial Itinerary...
+        </span>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {/* Event Header Card with Background and Event Code Pill */}
-      <div className="relative rounded-2xl overflow-hidden bg-charcoal-900 text-white shadow-md">
-        <div
-          className="h-44 w-full bg-cover bg-center brightness-[0.75]"
-          style={{
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80)',
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/90 via-charcoal-900/30 to-transparent flex flex-col justify-end p-5">
-          <h1 className="text-xl sm:text-2xl font-bold font-sans tracking-tight">
-            {joinedEvent.name}
-          </h1>
-          <p className="text-xs text-charcoal-300 font-medium mt-0.5">
-            {joinedEvent.city} &bull; {joinedEvent.dates}
-          </p>
+  // If guest is not associated with any event yet, show embossed join card
+  if (!dashboardData?.hasEvent) {
+    return (
+      <div className="max-w-md mx-auto py-8 space-y-6">
+        <div className="bg-white/80 rounded-3xl p-6 sm:p-8 border border-[#E5DACB] shadow-sm invitation-frame relative overflow-hidden text-center space-y-5">
+          <div className="absolute top-2 right-2 opacity-30">
+            <MarigoldFlower className="w-12 h-12 text-terracotta-500" />
+          </div>
 
-          {/* Event Code Pill with Copy Button */}
-          <div className="mt-3 inline-flex items-center self-start bg-charcoal-900/85 backdrop-blur-md rounded-xl p-1 pr-1.5 border border-white/15 gap-2 text-xs">
-            <span className="px-2 py-0.5 text-[11px] font-medium text-charcoal-300">
-              Event Code: <strong className="text-white font-mono">{joinedEvent.code}</strong>
+          <div className="w-14 h-14 rounded-2xl bg-warm-100 text-terracotta-600 mx-auto flex items-center justify-center border border-[#E5DACB]">
+            <KeyRound className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-gold-700">
+              Wedding Invitation Pass
             </span>
+            <h1 className="font-serif text-2xl sm:text-3xl text-charcoal-900">
+              Join Your Celebration
+            </h1>
+            <p className="text-xs text-charcoal-600 leading-relaxed max-w-xs mx-auto">
+              Please enter the 6-character event code from your wedding invitation card to view
+              scheduled ceremony shuttles and live chauffeur dispatch.
+            </p>
+          </div>
+
+          <form onSubmit={handleJoinSubmit} className="space-y-3 pt-2">
+            <input
+              type="text"
+              value={joinCodeInput}
+              onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+              placeholder="e.g. ROYAL6"
+              maxLength={10}
+              className="w-full text-center tracking-[0.3em] font-mono text-xl uppercase font-bold py-3.5 px-4 rounded-2xl border border-charcoal-300 bg-warm-50 text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-terracotta-500"
+            />
+
+            {errorMsg && (
+              <p className="text-xs text-rose-600 font-medium text-center">{errorMsg}</p>
+            )}
+
             <button
-              onClick={handleCopyCode}
-              className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-semibold text-[11px] transition-colors flex items-center gap-1"
+              type="submit"
+              disabled={joining || !joinCodeInput.trim()}
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white font-bold text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
             >
-              <Copy className="w-3 h-3" />
-              {copiedCode ? 'Copied' : 'Copy'}
+              {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Access Wedding Portal</span>}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const { event, family, nextFunction, ride } = dashboardData;
+  const guestFirstName = profile?.fullName ? profile.fullName.split(' ')[0] : 'Guest';
+
+  return (
+    <div className="space-y-6">
+      {/* ========================================================================= */}
+      {/* 1. PERSONALIZED GREETING & CEREMONY BANNER                                 */}
+      {/* ========================================================================= */}
+      <div className="bg-white/80 rounded-3xl p-5 sm:p-7 border border-[#E5DACB] shadow-xs invitation-frame relative overflow-hidden">
+        {/* Subtle Botanical Corner Watermark */}
+        <div className="absolute -top-3 -right-3 opacity-25 pointer-events-none hidden sm:block">
+          <MarigoldFlower className="w-20 h-20 text-terracotta-600" />
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-terracotta-700">
+                {greeting}, {guestFirstName}
+              </span>
+              <span className="w-1 h-1 rounded-full bg-charcoal-300" />
+              <span className="text-[11px] font-medium text-charcoal-500 uppercase tracking-wider">
+                {family?.name || 'Shah Family'}
+              </span>
+            </div>
+
+            <h1 className="font-serif text-2xl sm:text-3xl text-charcoal-900 font-normal">
+              {event?.name || 'The Wedding Celebration'}
+            </h1>
+
+            <p className="text-xs text-charcoal-600 flex items-center gap-2 pt-0.5">
+              <span>{event?.city}</span>
+              <span>&bull;</span>
+              <span>
+                {new Date(event?.startDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}{' '}
+                –{' '}
+                {new Date(event?.endDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </span>
+            </p>
+          </div>
+
+          {/* Join Code Badge with One-Tap Copy */}
+          <div className="self-start sm:self-center">
+            <button
+              onClick={() => handleCopyCode(event?.joinCode)}
+              className="px-3.5 py-1.5 rounded-xl bg-warm-100 hover:bg-warm-200 border border-[#E5DACB] text-xs font-semibold text-charcoal-800 flex items-center gap-2 transition-all shadow-2xs group"
+              title="Click to copy wedding pass code"
+            >
+              <span className="text-[11px] uppercase tracking-wider text-charcoal-500">Pass Code:</span>
+              <span className="font-mono font-bold text-charcoal-900">{event?.joinCode}</span>
+              {copiedCode ? (
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-charcoal-400 group-hover:text-charcoal-700" />
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* 4 Quick Action Cards */}
-      <div className="grid grid-cols-4 gap-2.5">
-        <Link
-          href="/guest/book"
-          className="p-3 rounded-2xl bg-white border border-charcoal-200/80 shadow-xs hover:border-safar-400 flex flex-col items-center justify-center gap-1.5 transition-all text-center group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-safar-50 text-safar-700 flex items-center justify-center group-hover:bg-safar-100 transition-colors">
-            <Car className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-bold text-charcoal-800">Book Ride</span>
-        </Link>
-
-        <Link
-          href="/guest/rides"
-          className="p-3 rounded-2xl bg-white border border-charcoal-200/80 shadow-xs hover:border-safar-400 flex flex-col items-center justify-center gap-1.5 transition-all text-center group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-safar-50 text-safar-700 flex items-center justify-center group-hover:bg-safar-100 transition-colors">
-            <Clock className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-bold text-charcoal-800">My Rides</span>
-        </Link>
-
-        <Link
-          href="/guest/event"
-          className="p-3 rounded-2xl bg-white border border-charcoal-200/80 shadow-xs hover:border-safar-400 flex flex-col items-center justify-center gap-1.5 transition-all text-center group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-safar-50 text-safar-700 flex items-center justify-center group-hover:bg-safar-100 transition-colors">
-            <Info className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-bold text-charcoal-800">Event Info</span>
-        </Link>
-
-        <button
-          onClick={() => alert('Host Transport Concierge Hotline: +91 98765 00000')}
-          className="p-3 rounded-2xl bg-white border border-charcoal-200/80 shadow-xs hover:border-safar-400 flex flex-col items-center justify-center gap-1.5 transition-all text-center group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-safar-50 text-safar-700 flex items-center justify-center group-hover:bg-safar-100 transition-colors">
-            <LifeBuoy className="w-5 h-5" />
-          </div>
-          <span className="text-[11px] font-bold text-charcoal-800">Support</span>
-        </button>
-      </div>
-
-      {/* "Your Next Ride" Card */}
-      <div className="bg-white rounded-2xl border border-charcoal-200/80 shadow-xs p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-sm text-charcoal-900">Your Next Ride</h2>
-          <Link
-            href="/guest/rides"
-            className="text-xs font-semibold text-safar-700 hover:text-safar-800"
-          >
-            View All
-          </Link>
-        </div>
-
-        <div className="space-y-3">
-          <div className="text-xs font-semibold text-charcoal-600">
-            {nextRide.time}
-          </div>
-
-          {/* Route Progression Timeline */}
-          <div className="space-y-3 relative pl-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-charcoal-200">
-            <div className="relative">
-              <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-charcoal-900 ring-4 ring-white" />
-              <div className="font-bold text-xs text-charcoal-900">{nextRide.pickup}</div>
-              <div className="text-[11px] text-charcoal-500">Ahmedabad</div>
-            </div>
-            <div className="relative">
-              <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-safar-600 ring-4 ring-white" />
-              <div className="font-bold text-xs text-charcoal-900">{nextRide.destination}</div>
-              <div className="text-[11px] text-charcoal-500">Ahmedabad</div>
-            </div>
-          </div>
-
-          {/* Vehicle & CTA Row */}
-          <div className="flex items-center justify-between pt-2 border-t border-charcoal-100">
-            <div>
-              <div className="font-bold text-xs text-charcoal-900">{nextRide.category}</div>
-              <div className="text-[11px] text-charcoal-500">{nextRide.seats} seats</div>
-            </div>
+      {/* ========================================================================= */}
+      {/* 2. YOUR NEXT FUNCTION CARD                                                */}
+      {/* ========================================================================= */}
+      {nextFunction && (
+        <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-[#E5DACB] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
             <div className="flex items-center gap-2">
-              <StatusBadge status="ON_TIME" size="sm" />
-              <button
-                onClick={() => setShowBoardingModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-safar-600 hover:bg-safar-700 text-white font-semibold text-xs transition-colors shadow-xs"
-              >
-                Track Ride
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Boarding Pass Modal */}
-      {showBoardingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl border border-charcoal-200 shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-
-            <div>
-              <span className="text-xs font-semibold text-safar-700 uppercase tracking-wider">
-                Confirmed Ride
+              <Calendar className="w-4 h-4 text-terracotta-600" />
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
+                Your Next Ceremony
               </span>
-              <h3 className="text-lg font-bold text-charcoal-900">Your Boarding Pass</h3>
-              <p className="text-xs text-charcoal-500 mt-0.5">
-                Show this 4-digit code to your driver upon arrival.
+            </div>
+            <Link
+              href="/guest/events"
+              className="text-xs font-semibold text-terracotta-600 hover:text-terracotta-700 flex items-center gap-1 uppercase tracking-wider"
+            >
+              All Events <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gold-700 bg-gold-50 px-2 py-0.5 rounded-md border border-gold-200">
+                {nextFunction.eventType || 'Celebration'}
+              </span>
+              <h3 className="font-serif text-xl sm:text-2xl text-charcoal-900 font-semibold pt-1">
+                {nextFunction.name}
+              </h3>
+              <p className="text-xs text-charcoal-600 flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-charcoal-400" />
+                <span>
+                  {new Date(nextFunction.date).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                  })}{' '}
+                  &bull; {nextFunction.startTime} – {nextFunction.endTime}
+                </span>
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-warm-100 border border-charcoal-200">
-              <span className="text-[11px] uppercase font-bold tracking-wider text-charcoal-500">
-                Boarding Code
-              </span>
-              <div className="text-3xl font-black font-mono tracking-widest text-safar-700 mt-1">
-                {nextRide.boardingCode}
+            <div className="p-3 rounded-2xl bg-warm-50 border border-[#E5DACB] text-xs text-charcoal-700 space-y-1 sm:max-w-xs">
+              <div className="font-bold flex items-center gap-1.5 text-charcoal-900">
+                <MapPin className="w-3.5 h-3.5 text-terracotta-600" />
+                <span>{nextFunction.venueName}</span>
               </div>
+              <p className="text-[11px] text-charcoal-500 line-clamp-1">{nextFunction.venueAddress}</p>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  `${nextFunction.venueName} ${nextFunction.venueAddress}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] font-semibold text-terracotta-600 hover:underline flex items-center gap-1 pt-0.5"
+              >
+                <span>View Venue Map</span>
+                <Compass className="w-3 h-3" />
+              </a>
             </div>
-
-            <div className="p-3 bg-white border border-charcoal-200 rounded-xl inline-block shadow-inner">
-              <div className="w-36 h-36 bg-charcoal-900 p-2 rounded-lg flex items-center justify-center text-white">
-                <QrCode className="w-28 h-28 text-white" />
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowBoardingModal(false)}
-              className="w-full py-2.5 rounded-xl bg-charcoal-900 text-white font-semibold text-xs hover:bg-charcoal-800 transition-colors"
-            >
-              Close
-            </button>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. YOUR RIDE CARD (REAL DISPATCH & STATUS)                                */}
+      {/* ========================================================================= */}
+      {ride ? (
+        <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-[#E5DACB] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
+            <div className="flex items-center gap-2">
+              <Car className="w-4 h-4 text-terracotta-600" />
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
+                Your Assigned Transport
+              </span>
+            </div>
+
+            {/* Ride Status Badge */}
+            <span
+              className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                ride.status === 'RIDE_IN_PROGRESS' || ride.status === 'DRIVER_ARRIVED'
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-warm-100 text-terracotta-800 border border-[#E5DACB]'
+              }`}
+            >
+              {ride.status === 'DRIVER_ARRIVED'
+                ? 'Driver Arrived Curbside'
+                : ride.status === 'DRIVER_ON_THE_WAY'
+                ? `En Route (${ride.etaMinutes} min)`
+                : ride.status === 'RIDE_IN_PROGRESS'
+                ? 'Ride in Progress'
+                : 'Chauffeur Assigned'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Vehicle & Chauffeur Info */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-charcoal-900 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Car className="w-6 h-6 text-warm-200" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-charcoal-900 text-base">
+                    {ride.vehicle?.model || 'Executive SUV'}
+                  </h4>
+                  <p className="text-xs font-mono font-semibold text-charcoal-500 uppercase">
+                    {ride.vehicle?.plateNumber || 'GJ01AB1234'} &bull; {ride.vehicle?.capacity || 4} Seats
+                  </p>
+                </div>
+              </div>
+
+              {ride.driver && (
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-warm-50 border border-[#E5DACB]">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-charcoal-400">
+                      Chauffeur
+                    </span>
+                    <p className="text-xs font-bold text-charcoal-900">{ride.driver.name}</p>
+                  </div>
+                  <a
+                    href={`tel:${ride.driver.phone}`}
+                    className="p-2 rounded-xl bg-white border border-[#E5DACB] text-terracotta-600 hover:bg-terracotta-50 transition-colors shadow-2xs"
+                    title="Call Chauffeur"
+                  >
+                    <PhoneCall className="w-4 h-4" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Pickup & Destination Details */}
+            <div className="p-3.5 rounded-2xl bg-warm-50 border border-[#E5DACB] space-y-2.5 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gold-600 mt-1 shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider text-charcoal-400 font-bold block">
+                      Pickup Point
+                    </span>
+                    <p className="text-xs font-bold text-charcoal-900">{ride.pickupLocation}</p>
+                    <p className="text-[11px] text-charcoal-500 line-clamp-1">{ride.pickupAddress}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-burgundy-700 mt-1 shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider text-charcoal-400 font-bold block">
+                      Ceremony Destination
+                    </span>
+                    <p className="text-xs font-bold text-charcoal-900">{ride.destinationVenue}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-[#E5DACB]/60 flex items-center justify-between text-xs">
+                <span className="text-charcoal-500 font-medium">
+                  Distance: <strong>{ride.distanceKm} km</strong>
+                </span>
+                <span className="text-charcoal-500 font-medium">
+                  Boarding PIN: <strong className="font-mono text-terracotta-700">{ride.boardingCode}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action CTA to Live Ride Tracking */}
+          <div className="pt-2">
+            <Link
+              href="/guest/rides"
+              className="w-full py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold tracking-widest uppercase shadow-sm flex items-center justify-center gap-2 transition-all"
+            >
+              <span>View Live Ride & Route Map</span>
+              <ArrowRight className="w-4 h-4 text-warm-300" />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/80 rounded-3xl p-6 border border-[#E5DACB] shadow-xs text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-warm-100 text-charcoal-600 mx-auto flex items-center justify-center">
+            <Car className="w-6 h-6" />
+          </div>
+          <h4 className="font-serif text-lg font-bold text-charcoal-900">
+            Transport Assignment in Preparation
+          </h4>
+          <p className="text-xs text-charcoal-600 max-w-sm mx-auto">
+            Your host mobility desk is currently mapping vehicles and chauffeurs for your family.
+            Real-time pickup details will appear automatically before each ceremony.
+          </p>
         </div>
       )}
     </div>

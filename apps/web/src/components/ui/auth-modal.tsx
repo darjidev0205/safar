@@ -123,43 +123,49 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl border border-charcoal-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl border border-charcoal-200/80 shadow-2xl max-w-md w-full overflow-hidden flex flex-col relative">
         {/* Top Header */}
-        <div className="p-6 border-b border-charcoal-100 flex items-center justify-between bg-warm-50/60">
-          <SafarLogo size="sm" />
+        <div className="px-6 py-5 border-b border-[#F0ECE1] flex items-center justify-between bg-[#FDFBF7]">
+          <div className="flex items-center gap-2">
+            <SafarLogo size="sm" />
+            <span className="text-[10px] font-bold tracking-widest text-[#0D9488] uppercase pl-2 border-l border-[#E2DDD2]">
+              MOVE TOGETHER
+            </span>
+          </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-charcoal-400 hover:text-charcoal-700 hover:bg-charcoal-100 transition-colors"
+            aria-label="Close authentication modal"
+            className="p-2 rounded-full text-charcoal-400 hover:text-charcoal-800 hover:bg-charcoal-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 sm:p-7 space-y-5 bg-white">
           <div className="text-center space-y-1">
-            <h2 className="text-xl font-bold text-charcoal-900 tracking-tight">
+            <h2 className="text-2xl font-black text-[#111827] tracking-tight">
               {isSignUp ? 'Create your SAFAR Account' : 'Welcome back to SAFAR'}
             </h2>
             <p className="text-xs text-charcoal-500">
               {isSignUp
-                ? 'Sign up for your role workspace. Under SAFAR policy: ONE EMAIL = ONE ROLE.'
-                : 'Sign in to access your authorized transportation workspace.'}
+                ? 'Register your role workspace under SAFAR unified event mobility.'
+                : 'Sign in to access your synchronized transportation dashboard.'}
             </p>
           </div>
 
-          {/* Role Selector Tabs */}
-          <div className="p-1 bg-charcoal-100/80 rounded-2xl grid grid-cols-3 gap-1 text-xs font-semibold text-charcoal-600">
+          {/* Role Selector Tabs (Pill style) */}
+          <div className="p-1 bg-[#F5F2EB] rounded-full grid grid-cols-3 gap-1 text-xs font-semibold text-charcoal-600">
             <button
               type="button"
               onClick={() => {
                 setSelectedRole(UserRole.EVENT_ORGANIZER);
                 setError(null);
               }}
-              className={`py-2 rounded-xl transition-all ${
+              className={`py-2 px-3 rounded-full transition-all text-center ${
                 selectedRole === UserRole.EVENT_ORGANIZER || selectedRole === UserRole.ACCOUNT_OWNER
-                  ? 'bg-white text-safar-700 shadow-xs'
+                  ? 'bg-[#0D9488] text-white shadow-xs font-bold'
                   : 'hover:text-charcoal-900'
               }`}
             >
@@ -171,9 +177,9 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                 setSelectedRole(UserRole.GUEST);
                 setError(null);
               }}
-              className={`py-2 rounded-xl transition-all ${
+              className={`py-2 px-3 rounded-full transition-all text-center ${
                 selectedRole === UserRole.GUEST
-                  ? 'bg-white text-safar-700 shadow-xs'
+                  ? 'bg-[#0D9488] text-white shadow-xs font-bold'
                   : 'hover:text-charcoal-900'
               }`}
             >
@@ -185,9 +191,9 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                 setSelectedRole(UserRole.DRIVER);
                 setError(null);
               }}
-              className={`py-2 rounded-xl transition-all ${
+              className={`py-2 px-3 rounded-full transition-all text-center ${
                 selectedRole === UserRole.DRIVER
-                  ? 'bg-white text-safar-700 shadow-xs'
+                  ? 'bg-[#0D9488] text-white shadow-xs font-bold'
                   : 'hover:text-charcoal-900'
               }`}
             >
@@ -195,12 +201,12 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
             </button>
           </div>
 
-          {/* Google Single Sign-On Button */}
+          {/* Google Single Sign-On Button (Pill style) */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl border border-charcoal-200 bg-white hover:bg-charcoal-50 text-xs font-semibold text-charcoal-800 transition-all flex items-center justify-center gap-3 shadow-xs disabled:opacity-60"
+            className="w-full py-2.5 px-4 rounded-full border border-charcoal-200 bg-white hover:bg-charcoal-50 text-xs font-semibold text-charcoal-800 transition-all flex items-center justify-center gap-3 shadow-xs disabled:opacity-60 hover:border-charcoal-300"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -220,15 +226,15 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
               />
             </svg>
-            Continue with Google
+            <span>Continue with Google</span>
           </button>
 
           <div className="relative flex items-center justify-center">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-charcoal-200" />
             </div>
-            <span className="relative bg-white px-3 text-[11px] uppercase tracking-wider font-semibold text-charcoal-400">
-              or continue with email
+            <span className="relative bg-white px-3 text-[10px] uppercase tracking-wider font-bold text-charcoal-400">
+              OR CONTINUE WITH EMAIL
             </span>
           </div>
 
@@ -258,7 +264,7 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your full name"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-[#0D9488] focus:border-[#0D9488] focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -276,7 +282,7 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-[#0D9488] focus:border-[#0D9488] focus:outline-none transition-all"
                 />
               </div>
             </div>
@@ -293,7 +299,7 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-[#0D9488] focus:border-[#0D9488] focus:outline-none transition-all"
                 />
               </div>
             </div>
@@ -301,7 +307,7 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-safar-600 hover:bg-safar-700 text-white font-bold text-xs shadow-sm shadow-safar-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99]"
+              className="w-full py-3 rounded-full bg-[#0D9488] hover:bg-[#0F766E] text-white font-bold text-xs shadow-md shadow-teal-700/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99]"
             >
               {loading ? (
                 'Verifying Credentials...'
@@ -325,7 +331,7 @@ export function AuthModal({ isOpen, onClose, defaultRole = UserRole.EVENT_ORGANI
                 setIsSignUp(!isSignUp);
                 setError(null);
               }}
-              className="text-xs text-charcoal-500 hover:text-safar-700 font-semibold"
+              className="text-xs text-charcoal-500 hover:text-[#0D9488] font-semibold transition-colors"
             >
               {isSignUp
                 ? 'Already have an account? Sign In'

@@ -48,26 +48,62 @@ module.exports = {
           950: '#080d1a',
         },
         warm: {
-          50: '#FAF9F5',  // Warm editorial foundation #FAF9F5
-          100: '#F5F4EF', // Light warm paper #F5F4EF
-          150: '#EFECE4', // Soft border / container
-          200: '#E6E3D8',
-          300: '#D5D1C3',
-          400: '#A8A495',
+          50: '#FAF7F2',  // Warm ivory paper
+          100: '#F5EFE6', // Soft parchment
+          150: '#EFE6DA',
+          200: '#E5DACB',
+          300: '#D4C4B0',
+          400: '#B09F89',
+        },
+        terracotta: {
+          50: '#FDF6F3',
+          100: '#FBECE7',
+          200: '#F6D5CB',
+          500: '#C86D51',
+          600: '#B85D43',
+          700: '#A84E36',
+          800: '#8A3B26',
+        },
+        burgundy: {
+          50: '#FBF3F4',
+          100: '#F7E4E6',
+          200: '#ECC5C9',
+          600: '#722F37',
+          700: '#661D28',
+          800: '#541520',
+          900: '#3D0F16',
+        },
+        sage: {
+          50: '#F4F7F5',
+          100: '#E8EFEA',
+          200: '#D2DFD5',
+          500: '#7E9A86',
+          600: '#688571',
+          700: '#546F5C',
+          800: '#3F5645',
+        },
+        gold: {
+          300: '#E4C999',
+          400: '#D4B279',
+          500: '#C49E64',
+          600: '#B08B52',
+          700: '#94723E',
         },
         amber: {
           50: '#fffbeb',
           100: '#fef3c7',
           400: '#fbbf24',
-          500: '#D9A85C', // Vintage ticket gold / warm amber
+          500: '#D9A85C',
           600: '#C08D38',
           700: '#9B6C24',
         },
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'Inter', 'Manrope', 'system-ui', 'sans-serif'],
-        serif: ['DM Serif Display', 'Georgia', 'serif'],
-        display: ['Plus Jakarta Sans', 'Manrope', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['Cormorant Garamond', 'Playfair Display', 'DM Serif Display', 'Georgia', 'serif'],
+        cormorant: ['Cormorant Garamond', 'Georgia', 'serif'],
+        playfair: ['Playfair Display', 'Georgia', 'serif'],
+        display: ['Cormorant Garamond', 'Playfair Display', 'serif'],
       },
     },
   },

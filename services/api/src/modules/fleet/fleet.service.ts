@@ -59,7 +59,12 @@ export class FleetService {
   async inviteDriver(accountId: string, data: any) {
     // Check if user exists with phone or email
     let user = await this.prisma.user.findFirst({
-      where: { phoneNumber: data.phoneNumber },
+      where: {
+        OR: [
+          ...(data.phoneNumber ? [{ phoneNumber: data.phoneNumber }] : []),
+          ...(data.email ? [{ email: { equals: data.email.toLowerCase().trim(), mode: 'insensitive' } }] : []),
+        ],
+      },
     });
 
     if (!user) {
@@ -67,7 +72,8 @@ export class FleetService {
         data: {
           firebaseUid: `driver_${uuidv4()}`,
           fullName: data.fullName,
-          phoneNumber: data.phoneNumber,
+          phoneNumber: data.phoneNumber || null,
+          email: data.email ? data.email.toLowerCase().trim() : null,
           role: UserRole.DRIVER,
         },
       });

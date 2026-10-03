@@ -29,21 +29,29 @@ export interface FieldDefinition {
 export interface ExcelImportModalProps {
   isOpen: boolean;
   title: string;
-  entityName: string; // e.g. "Guests" or "Drivers"
+  subtitle?: string;
+  entityName?: string; // e.g. "Guests" or "Drivers"
   fields: FieldDefinition[];
+  sampleData?: any[];
+  templateFileName?: string;
   existingRecords?: Array<{ email?: string; phone?: string; id?: string }>;
   onClose: () => void;
-  onImportComplete: (records: any[]) => void;
+  onImportComplete?: (records: any[]) => void;
+  onImport?: (records: any[]) => void;
 }
 
 export function ExcelImportModal({
   isOpen,
   title,
-  entityName,
+  subtitle,
+  entityName = 'Records',
   fields,
+  sampleData,
+  templateFileName,
   existingRecords = [],
   onClose,
   onImportComplete,
+  onImport,
 }: ExcelImportModalProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -205,7 +213,8 @@ export function ExcelImportModal({
       errors: errorCount,
     });
 
-    onImportComplete(finalRecords);
+    if (onImportComplete) onImportComplete(finalRecords);
+    if (onImport) onImport(finalRecords);
     setStep(4); // Summary Result
   };
 

@@ -114,6 +114,8 @@ model Account {
   drivers      Driver[]
   invitations  Invitation[]
   auditLogs    AuditLog[]
+  families     Family[]
+  allGuests    Guest[]
 
   @@map("accounts")
 }
@@ -154,33 +156,47 @@ model Invitation {
 }
 
 model Event {
-  id          String      @id @default(uuid())
-  accountId   String
-  creatorId   String
-  name        String
-  city        String
-  startDate   DateTime
-  endDate     DateTime
-  joinCode    String      @unique
-  bannerUrl   String?
-  description String?
-  status      EventStatus @default(ACTIVE)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                  String      @id @default(uuid())
+  accountId           String
+  creatorId           String
+  name                String
+  eventType           String?
+  city                String
+  startDate           DateTime
+  endDate             DateTime
+  startTime           String?
+  endTime             String?
+  venueName           String?
+  venueAddress        String?
+  venueLatitude       Float?
+  venueLongitude      Float?
+  expectedGuestCount  Int         @default(0)
+  joinCode            String      @unique
+  bannerUrl           String?
+  description         String?
+  status              EventStatus @default(ACTIVE)
+  parentEventId       String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
-  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  creator       User           @relation("EventCreator", fields: [creatorId], references: [id])
-  eventMembers  EventMember[]
-  eventCodes    EventCode[]
-  functions     Function[]
-  places        Place[]
-  guests        Guest[]
-  trips         Trip[]
-  bookings      Booking[]
-  auditLogs     AuditLog[]
+  account               Account                     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  creator               User                        @relation("EventCreator", fields: [creatorId], references: [id])
+  parentEvent           Event?                      @relation("EventHierarchy", fields: [parentEventId], references: [id], onDelete: Cascade)
+  subEvents             Event[]                     @relation("EventHierarchy")
+  eventMembers          EventMember[]
+  eventCodes            EventCode[]
+  functions             Function[]
+  places                Place[]
+  guests                Guest[]
+  trips                 Trip[]
+  bookings              Booking[]
+  auditLogs             AuditLog[]
+  transportRequirements EventTransportRequirement[]
+  eventGuests           EventGuest[]
 
   @@index([accountId])
   @@index([joinCode])
+  @@index([parentEventId])
   @@map("events")
 }
 
@@ -265,26 +281,101 @@ model GuestGroup {
   @@map("guest_groups")
 }
 
-model Guest {
-  id           String      @id @default(uuid())
-  eventId      String
-  userId       String?
-  groupId      String?
-  fullName     String
-  phoneNumber  String?
-  email        String?
-  notes        String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+model EventTransportRequirement {
+  id                  String   @id @default(uuid())
+  eventId             String
+  pickupRequired      Boolean  @default(false)
+  dropRequired        Boolean  @default(false)
+  pickupLocation      String?
+  dropLocation        String?
+  pickupDate          DateTime?
+  pickupTime          String?
+  vehicleType         String?
+  numberOfVehicles    Int      @default(0)
+  specialInstructions String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  group        GuestGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  bookings     Booking[]
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
+  @@map("event_transport_requirements")
+}
+
+model Family {
+  id        String   @id @default(uuid())
+  accountId String
+  name      String
+  relation  String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  guests    Guest[]
+
+  @@index([accountId])
+  @@map("families")
+}
+
+model Guest {
+  id                  String       @id @default(uuid())
+  eventId             String?
+  accountId           String?
+  userId              String?
+  groupId             String?
+  familyId            String?
+  familyName          String?
+  relation            String?
+  fullName            String
+  phoneNumber         String?
+  email               String?
+  memberCount         Int          @default(1)
+  category            String?
+  pickupLocation      String?
+  dropLocation        String?
+  hotelRoom           String?
+  specialRequirements String?
+  status              String       @default("CONFIRMED")
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  event               Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  account             Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user                User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  group               GuestGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  family              Family?      @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  bookings            Booking[]
+  eventGuests         EventGuest[]
+
+  @@index([eventId])
+  @@index([accountId])
+  @@index([familyId])
   @@index([userId])
   @@map("guests")
+}
+
+model EventGuest {
+  id                  String   @id @default(uuid())
+  eventId             String
+  guestId             String
+  status              String   @default("CONFIRMED")
+  pickupLocation      String?
+  dropLocation        String?
+  hotelRoom           String?
+  specialRequirements String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest               Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, guestId])
+  @@index([eventId])
+  @@index([guestId])
+  @@map("event_guests")
 }
 
 model Vehicle {

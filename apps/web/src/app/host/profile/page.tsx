@@ -13,9 +13,9 @@ import {
   Loader2,
   Shield,
   Sparkles,
-  Calendar,
   Lock,
 } from 'lucide-react';
+import { SafarButton } from '../../../components/ui/safar-design-system';
 
 export default function HostProfilePage() {
   const { profile, updateUserProfile, authStatus } = useAuth();
@@ -90,7 +90,7 @@ export default function HostProfilePage() {
   if (authStatus === 'AUTH_LOADING' && !profile) {
     return (
       <div className="max-w-3xl mx-auto py-12 flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="w-6 h-6 text-safar-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-terracotta-600 animate-spin" />
         <span className="text-xs font-semibold text-charcoal-500">Loading host profile...</span>
       </div>
     );
@@ -106,31 +106,39 @@ export default function HostProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-charcoal-900 tracking-tight">Host Profile &amp; Account Settings</h1>
-        <p className="text-xs text-charcoal-500 mt-0.5">
-          Manage your personal organizer identity, contact details, and dashboard display name.
+      {/* Editorial Header */}
+      <div className="border-b border-warm-200/80 pb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-gold-100/70 text-gold-900 border border-gold-200/60 font-sans">
+            Organizer Account
+          </span>
+          <span className="text-xs text-charcoal-400 font-sans">Personal Credentials</span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-charcoal-900 tracking-tight">
+          Host Profile &amp; Settings
+        </h1>
+        <p className="text-xs text-charcoal-500 mt-1 font-sans leading-relaxed">
+          Manage your personal organizer identity, contact numbers for driver escalations, and dashboard greeting.
         </p>
       </div>
 
       {/* Live Greeting Preview Banner */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-charcoal-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-safar-50 text-safar-700 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" />
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-warm-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-terracotta-50 text-terracotta-700 border border-terracotta-200 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5 text-terracotta-600" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-safar-700">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-terracotta-800">
               Dashboard Greeting Preview
             </div>
-            <div className="text-base sm:text-lg font-bold text-charcoal-900">
+            <div className="text-base sm:text-lg font-serif font-bold text-charcoal-900">
               {liveGreetingPreview}
             </div>
           </div>
         </div>
-        <span className="text-[11px] text-charcoal-400 font-medium self-start sm:self-center">
-          Updates live across your workspace
+        <span className="text-[11px] text-charcoal-400 font-sans self-start sm:self-center">
+          Updates live across your SAFAR workspace
         </span>
       </div>
 
@@ -151,18 +159,18 @@ export default function HostProfilePage() {
 
       {/* Profile Card Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="p-6 sm:p-8 rounded-3xl bg-white border border-charcoal-200/90 shadow-xs space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-white border border-warm-200 shadow-2xs space-y-6">
           {/* Avatar Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-5 pb-6 border-b border-charcoal-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5 pb-6 border-b border-warm-200">
             <div className="relative">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
                   alt={fullName || 'Host'}
-                  className="w-20 h-20 rounded-2xl object-cover border border-charcoal-200 shadow-xs"
+                  className="w-20 h-20 rounded-2xl object-cover border border-warm-200 shadow-2xs"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-safar-100 text-safar-800 flex items-center justify-center font-black text-xl shadow-xs border border-safar-200">
+                <div className="w-20 h-20 rounded-2xl bg-terracotta-50 text-terracotta-800 flex items-center justify-center font-serif font-bold text-2xl shadow-2xs border border-terracotta-200">
                   {initials || 'H'}
                 </div>
               )}
@@ -175,7 +183,7 @@ export default function HostProfilePage() {
                 value={avatarUrl}
                 onChange={(e) => setAvatarUrl(e.target.value)}
                 placeholder="https://images.unsplash.com/... or paste image URL"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs focus:ring-2 focus:ring-safar-500 placeholder:text-charcoal-400"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 placeholder:text-charcoal-400"
               />
               <p className="text-[11px] text-charcoal-400">
                 Optional: Enter a direct image URL for your profile photo.
@@ -188,7 +196,7 @@ export default function HostProfilePage() {
             {/* Full Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-charcoal-800">
-                Full Name / Display Name <span className="text-rose-500">*</span>
+                Full Name / Display Name <span className="text-terracotta-600">*</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-charcoal-400" />
@@ -197,12 +205,12 @@ export default function HostProfilePage() {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Dev or Darji"
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs font-semibold text-charcoal-900 focus:ring-2 focus:ring-safar-500"
+                  placeholder="e.g. Priya Shah"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-semibold text-charcoal-900 focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500"
                 />
               </div>
               <p className="text-[11px] text-charcoal-400">
-                This name is used in your dashboard greeting and invitations.
+                This name appears on the dashboard greeting and event invitations.
               </p>
             </div>
 
@@ -216,7 +224,7 @@ export default function HostProfilePage() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 text-xs font-semibold text-charcoal-900 focus:ring-2 focus:ring-safar-500"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-semibold text-charcoal-900 focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500"
                 />
               </div>
               <p className="text-[11px] text-charcoal-400">
@@ -239,7 +247,7 @@ export default function HostProfilePage() {
                   readOnly
                   disabled
                   value={profile?.email || 'N/A'}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-charcoal-200 bg-charcoal-50/80 text-xs font-medium text-charcoal-600 cursor-not-allowed"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-warm-200 bg-warm-50 text-xs font-medium text-charcoal-600 cursor-not-allowed"
                 />
               </div>
               <p className="text-[11px] text-charcoal-400">
@@ -252,12 +260,12 @@ export default function HostProfilePage() {
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-charcoal-800">Assigned Workspace Role</label>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-safar-600" /> Protected
+                  <Shield className="w-3 h-3 text-terracotta-600" /> Protected
                 </span>
               </div>
-              <div className="px-3.5 py-2.5 rounded-xl border border-charcoal-200 bg-charcoal-50/80 text-xs font-bold text-charcoal-800 flex items-center justify-between">
+              <div className="px-3.5 py-2.5 rounded-xl border border-warm-200 bg-warm-50 text-xs font-bold text-charcoal-800 flex items-center justify-between">
                 <span>{profile?.role ? profile.role.replace('_', ' ') : 'EVENT ORGANIZER'}</span>
-                <span className="px-2 py-0.5 rounded-md bg-safar-50 border border-safar-200 text-safar-800 text-[10px] font-black uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded-md bg-gold-100/70 border border-gold-200 text-gold-900 text-[10px] font-black uppercase tracking-wider">
                   Host
                 </span>
               </div>
@@ -268,12 +276,8 @@ export default function HostProfilePage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 border-t border-charcoal-100 flex items-center justify-end gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 rounded-xl bg-safar-600 hover:bg-safar-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center gap-2 active:scale-[0.98] transition-all"
-            >
+          <div className="pt-4 border-t border-warm-200 flex items-center justify-end gap-3">
+            <SafarButton type="submit" variant="primary" disabled={saving}>
               {saving ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -282,7 +286,7 @@ export default function HostProfilePage() {
               ) : (
                 <span>Save Changes</span>
               )}
-            </button>
+            </SafarButton>
           </div>
         </div>
       </form>

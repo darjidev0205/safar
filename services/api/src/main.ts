@@ -7,9 +7,11 @@ import helmet from 'helmet';
 
 async function bootstrap() {
   const logger = new Logger('SAFAR_API');
+
   const app = await NestFactory.create(AppModule);
 
   app.use(helmet());
+
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -20,13 +22,14 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const port = Number(process.env.PORT) || 3000;
+
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`=======================================================`);
+  logger.log('=======================================================');
   logger.log(`🚗 SAFAR Backend Service running on port ${port}`);
-  logger.log(`📡 WebSocket Gateway ready on ws://localhost:${port}`);
-  logger.log(`🛡️  RBAC & Tenant Isolation Active`);
-  logger.log(`=======================================================`);
+  logger.log(`📡 WebSocket Gateway ready on port ${port}`);
+  logger.log(`🛡️ RBAC & Tenant Isolation Active`);
+  logger.log('=======================================================');
 }
 
 bootstrap();

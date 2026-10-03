@@ -18,7 +18,7 @@ export function UpcomingTripsTable({
   onCreateTrip,
 }: UpcomingTripsTableProps) {
   return (
-    <div className="bg-white/95 rounded-3xl border border-warm-200/90 shadow-2xs overflow-hidden">
+    <div className="bg-white rounded-3xl border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 border-b border-warm-200/80 flex items-center justify-between bg-warm-50/60">
         <div>

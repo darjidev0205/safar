@@ -88,7 +88,7 @@ export function KpiCards({ stats }: KpiCardsProps) {
         return (
           <div
             key={idx}
-            className="p-4 rounded-2xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
+            className="p-4 rounded-2xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)] hover:shadow-md hover:border-warm-300 transition-all flex flex-col justify-between active:scale-[0.985]"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-charcoal-500 uppercase tracking-wider truncate font-sans">

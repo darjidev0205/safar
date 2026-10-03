@@ -147,7 +147,7 @@ export default function GuestHomePage() {
   if (!dashboardData?.hasEvent) {
     return (
       <div className="max-w-md mx-auto py-8 space-y-6">
-        <div className="bg-white/80 rounded-3xl p-6 sm:p-8 border border-[#E5DACB] shadow-sm invitation-frame relative overflow-hidden text-center space-y-5">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] invitation-frame relative overflow-hidden text-center space-y-5">
           <div className="absolute top-2 right-2 opacity-30">
             <MarigoldFlower className="w-12 h-12 text-terracotta-500" />
           </div>
@@ -186,7 +186,7 @@ export default function GuestHomePage() {
             <button
               type="submit"
               disabled={joining || !joinCodeInput.trim()}
-              className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white font-bold text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white font-bold text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.985]"
             >
               {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Access Wedding Portal</span>}
               <ArrowRight className="w-4 h-4" />
@@ -205,7 +205,7 @@ export default function GuestHomePage() {
       {/* ========================================================================= */}
       {/* 1. PERSONALIZED GREETING & CEREMONY BANNER                                 */}
       {/* ========================================================================= */}
-      <div className="bg-white/80 rounded-3xl p-5 sm:p-7 border border-[#E5DACB] shadow-xs invitation-frame relative overflow-hidden">
+      <div className="bg-white rounded-3xl p-5 sm:p-7 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] invitation-frame relative overflow-hidden">
         {/* Subtle Botanical Corner Watermark */}
         <div className="absolute -top-3 -right-3 opacity-25 pointer-events-none hidden sm:block">
           <MarigoldFlower className="w-20 h-20 text-terracotta-600" />
@@ -249,7 +249,7 @@ export default function GuestHomePage() {
           <div className="self-start sm:self-center">
             <button
               onClick={() => handleCopyCode(event?.joinCode)}
-              className="px-3.5 py-1.5 rounded-xl bg-warm-100 hover:bg-warm-200 border border-[#E5DACB] text-xs font-semibold text-charcoal-800 flex items-center gap-2 transition-all shadow-2xs group"
+              className="px-3.5 py-1.5 rounded-xl bg-warm-100 hover:bg-warm-200 border border-[#E5DACB] text-xs font-semibold text-charcoal-800 flex items-center gap-2 transition-all shadow-2xs group active:scale-[0.985]"
               title="Click to copy wedding pass code"
             >
               <span className="text-[11px] uppercase tracking-wider text-charcoal-500">Pass Code:</span>
@@ -268,7 +268,7 @@ export default function GuestHomePage() {
       {/* 2. YOUR NEXT FUNCTION CARD                                                */}
       {/* ========================================================================= */}
       {nextFunction && (
-        <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-[#E5DACB] shadow-xs space-y-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-terracotta-600" />
@@ -305,7 +305,7 @@ export default function GuestHomePage() {
               </p>
             </div>
 
-            <div className="p-3 rounded-2xl bg-warm-50 border border-[#E5DACB] text-xs text-charcoal-700 space-y-1 sm:max-w-xs">
+            <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] text-xs text-charcoal-700 space-y-1 sm:max-w-xs font-sans">
               <div className="font-bold flex items-center gap-1.5 text-charcoal-900">
                 <MapPin className="w-3.5 h-3.5 text-terracotta-600" />
                 <span>{nextFunction.venueName}</span>
@@ -331,8 +331,8 @@ export default function GuestHomePage() {
       {/* 3. YOUR RIDE CARD (REAL DISPATCH & STATUS)                                */}
       {/* ========================================================================= */}
       {ride ? (
-        <div className="bg-white/80 rounded-3xl p-5 sm:p-6 border border-[#E5DACB] shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-warm-100">
             <div className="flex items-center gap-2">
               <Car className="w-4 h-4 text-terracotta-600" />
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
@@ -344,8 +344,8 @@ export default function GuestHomePage() {
             <span
               className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                 ride.status === 'RIDE_IN_PROGRESS' || ride.status === 'DRIVER_ARRIVED'
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : 'bg-warm-100 text-terracotta-800 border border-[#E5DACB]'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-warm-100 text-terracotta-800 border border-warm-300'
               }`}
             >
               {ride.status === 'DRIVER_ARRIVED'
@@ -366,7 +366,7 @@ export default function GuestHomePage() {
                   <Car className="w-6 h-6 text-warm-200" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-charcoal-900 text-base">
+                  <h4 className="font-bold text-charcoal-900 text-base font-serif">
                     {ride.vehicle?.model || 'Executive SUV'}
                   </h4>
                   <p className="text-xs font-mono font-semibold text-charcoal-500 uppercase">
@@ -376,7 +376,7 @@ export default function GuestHomePage() {
               </div>
 
               {ride.driver && (
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-warm-50 border border-[#E5DACB]">
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9]">
                   <div>
                     <span className="text-[10px] uppercase font-bold tracking-wider text-charcoal-400">
                       Chauffeur
@@ -385,7 +385,7 @@ export default function GuestHomePage() {
                   </div>
                   <a
                     href={`tel:${ride.driver.phone}`}
-                    className="p-2 rounded-xl bg-white border border-[#E5DACB] text-terracotta-600 hover:bg-terracotta-50 transition-colors shadow-2xs"
+                    className="p-2 rounded-xl bg-white border border-[#E8E2D9] text-terracotta-600 hover:bg-terracotta-50 transition-colors shadow-2xs"
                     title="Call Chauffeur"
                   >
                     <PhoneCall className="w-4 h-4" />
@@ -395,7 +395,7 @@ export default function GuestHomePage() {
             </div>
 
             {/* Pickup & Destination Details */}
-            <div className="p-3.5 rounded-2xl bg-warm-50 border border-[#E5DACB] space-y-2.5 flex flex-col justify-between">
+            <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] space-y-2.5 flex flex-col justify-between font-sans">
               <div className="space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-gold-600 mt-1 shrink-0" />
@@ -419,7 +419,7 @@ export default function GuestHomePage() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-[#E5DACB]/60 flex items-center justify-between text-xs">
+              <div className="pt-2 border-t border-warm-200/60 flex items-center justify-between text-xs">
                 <span className="text-charcoal-500 font-medium">
                   Distance: <strong>{ride.distanceKm} km</strong>
                 </span>
@@ -434,7 +434,7 @@ export default function GuestHomePage() {
           <div className="pt-2">
             <Link
               href="/guest/rides"
-              className="w-full py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold tracking-widest uppercase shadow-sm flex items-center justify-center gap-2 transition-all"
+              className="w-full py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold tracking-widest uppercase shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.985]"
             >
               <span>View Live Ride & Route Map</span>
               <ArrowRight className="w-4 h-4 text-warm-300" />
@@ -442,14 +442,14 @@ export default function GuestHomePage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white/80 rounded-3xl p-6 border border-[#E5DACB] shadow-xs text-center space-y-3">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-warm-100 text-charcoal-600 mx-auto flex items-center justify-center">
             <Car className="w-6 h-6" />
           </div>
           <h4 className="font-serif text-lg font-bold text-charcoal-900">
             Transport Assignment in Preparation
           </h4>
-          <p className="text-xs text-charcoal-600 max-w-sm mx-auto">
+          <p className="text-xs text-charcoal-600 max-w-sm mx-auto font-sans">
             Your host mobility desk is currently mapping vehicles and chauffeurs for your family.
             Real-time pickup details will appear automatically before each ceremony.
           </p>

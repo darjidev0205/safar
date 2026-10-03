@@ -22,7 +22,7 @@ import { GuestExcelImportModal } from '../../components/host/guest-excel-import-
 import { useAuth } from '../../context/auth-context';
 import { formatHostGreeting } from '../../lib/time-greeting';
 import { StarFlourish, MarigoldFlower, OliveBranch } from '../../components/ui/botanical-ornaments';
-import { SafarBadge, SafarButton, SafarEmptyState } from '../../components/ui/safar-design-system';
+import { SafarBadge, SafarButton, SafarEmptyState, HorizontalCardScroller } from '../../components/ui/safar-design-system';
 import Link from 'next/link';
 
 export default function HostDashboardPage() {
@@ -139,7 +139,7 @@ export default function HostDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-7 animate-in fade-in duration-300">
       {/* Top Banner: Printed Editorial Invitation Banner */}
-      <div className="p-6 md:p-8 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="p-6 md:p-8 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         {/* Subtle Decorative Botanical Flourish Background Accent */}
         <div className="absolute right-4 -bottom-6 pointer-events-none opacity-20">
           <OliveBranch className="w-36 h-36 text-sage-600" />
@@ -221,7 +221,7 @@ export default function HostDashboardPage() {
             onAction={() => setIsWizardOpen(true)}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <HorizontalCardScroller gridCols="md:grid-cols-2 lg:grid-cols-3">
             {events.slice(0, 6).map((ev) => {
               const tr = ev.transportRequirements;
               const badgeVariant = getFunctionBadgeVariant(ev.eventType);
@@ -229,7 +229,7 @@ export default function HostDashboardPage() {
               return (
                 <div
                   key={ev.id}
-                  className="p-5 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
+                  className="p-5.5 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-gold-400/60 active:scale-[0.985] transition-all flex flex-col justify-between h-full"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -251,7 +251,7 @@ export default function HostDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-warm-50/70 border border-warm-200/80 grid grid-cols-2 gap-2 text-xs font-sans">
+                    <div className="p-3 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] grid grid-cols-2 gap-2 text-xs font-sans">
                       <div>
                         <span className="text-[10px] text-charcoal-400 font-medium block">Date & Time</span>
                         <span className="font-semibold text-charcoal-800 truncate block">
@@ -304,7 +304,7 @@ export default function HostDashboardPage() {
                 </div>
               );
             })}
-          </div>
+          </HorizontalCardScroller>
         )}
       </div>
 

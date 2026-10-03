@@ -10,6 +10,11 @@ import { AuthModal } from '../components/ui/auth-modal';
 import { useAuth } from '../context/auth-context';
 import { UserRole } from '@safar/types';
 import {
+  HorizontalCardScroller,
+  SectionHeader,
+  SafarBadge,
+} from '../components/ui/safar-design-system';
+import {
   Calendar,
   Clock,
   MapPin,
@@ -204,7 +209,7 @@ export default function LandingPage() {
       {/* ========================================================================= */}
       {/* 2. SECTION 1: HANDCRAFTED WEDDING HERO (EDITORIAL COMPOSITION)           */}
       {/* ========================================================================= */}
-      <section className="relative pt-28 sm:pt-36 pb-20 md:pb-28 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 md:pt-36 pb-14 sm:pb-20 md:pb-28 overflow-hidden">
         {/* Subtle Decorative Background Motifs */}
         <div className="absolute top-16 right-10 opacity-30 pointer-events-none hidden lg:block">
           <IndianArchOutline className="w-24 h-24 text-gold-600" />
@@ -214,19 +219,19 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-12 items-center">
             {/* Left/Center Text Column: Stately Serif Typography */}
-            <div className="lg:col-span-6 space-y-6 sm:space-y-8 z-10 text-left">
+            <div className="lg:col-span-6 space-y-5 sm:space-y-7 z-10 text-left">
               {/* Refined Upper Label */}
-              <div className="inline-flex items-center gap-2.5 text-[11px] font-bold uppercase tracking-[0.24em] text-terracotta-700 bg-terracotta-50/80 px-3.5 py-1.5 rounded-full border border-terracotta-200/60 shadow-2xs">
+              <div className="inline-flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.24em] text-terracotta-700 bg-white/90 px-3.5 py-1.5 rounded-full border border-terracotta-200/80 shadow-2xs">
                 <StarFlourish className="w-2.5 h-2.5 text-terracotta-600" />
                 <span>Wedding Travel, Beautifully Planned</span>
                 <StarFlourish className="w-2.5 h-2.5 text-terracotta-600" />
               </div>
 
               {/* Main Headline */}
-              <div className="space-y-2">
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-normal font-serif text-charcoal-900 leading-[1.08] tracking-tight">
+              <div className="space-y-1.5">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-normal font-serif text-charcoal-900 leading-[1.12] sm:leading-[1.08] tracking-tight">
                   Every celebration <br />
                   has a journey. <br />
                   <span className="italic font-light text-terracotta-600">
@@ -236,15 +241,15 @@ export default function LandingPage() {
               </div>
 
               {/* Supporting Subtext */}
-              <p className="text-sm sm:text-base text-charcoal-600 font-sans leading-relaxed max-w-lg">
+              <p className="text-xs sm:text-sm md:text-base text-charcoal-600 font-sans leading-relaxed max-w-lg">
                 Thoughtfully planned transportation for Indian weddings. From airport welcomes and multi-ceremony transfers to the final midnight farewell.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                 <button
                   onClick={() => openAuthWithRole(UserRole.EVENT_ORGANIZER)}
-                  className="px-8 py-3.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white text-xs font-bold uppercase tracking-[0.14em] shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group"
+                  className="px-7 py-3.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white text-xs font-bold uppercase tracking-[0.14em] shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group active:scale-[0.985]"
                 >
                   <span>Begin Your Journey</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -252,7 +257,7 @@ export default function LandingPage() {
 
                 <a
                   href="#functions"
-                  className="px-6 py-3.5 rounded-full border border-charcoal-300 bg-white/80 hover:bg-white text-xs font-semibold text-charcoal-800 tracking-[0.12em] uppercase transition-all shadow-2xs flex items-center justify-center gap-2"
+                  className="px-6 py-3.5 rounded-full border border-[#D4C4B0] bg-white/90 hover:bg-white text-xs font-semibold text-charcoal-800 tracking-[0.12em] uppercase transition-all shadow-2xs flex items-center justify-center gap-2 active:scale-[0.985]"
                 >
                   <span>Explore Functions</span>
                   <ChevronRight className="w-3.5 h-3.5 text-charcoal-400" />
@@ -260,33 +265,33 @@ export default function LandingPage() {
               </div>
 
               {/* Subtle Handcrafted Quote Note */}
-              <div className="pt-4 flex items-center gap-3 text-xs text-charcoal-500 italic">
+              <div className="pt-2 flex items-center gap-2.5 text-xs text-charcoal-500 italic font-sans">
                 <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shrink-0" />
                 <span>No frantic phone calls to the baraat. Just graceful, dignified arrivals.</span>
               </div>
             </div>
 
             {/* Right Column: Hand-Painted Editorial Wedding Illustration Composition */}
-            <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
+            <div className="lg:col-span-6 relative flex justify-center lg:justify-end mt-4 lg:mt-0">
               {/* Asymmetric Botanical Flowers Extending Beyond the Frame */}
-              <div className="absolute -top-6 -right-3 sm:-right-6 z-20 pointer-events-none animate-in fade-in">
-                <MarigoldFlower className="w-10 h-10 sm:w-12 sm:h-12 text-terracotta-500 drop-shadow-xs" />
+              <div className="absolute -top-4 right-0 sm:-right-4 z-20 pointer-events-none animate-in fade-in">
+                <MarigoldFlower className="w-9 h-9 sm:w-12 sm:h-12 text-terracotta-500 drop-shadow-xs" />
               </div>
-              <div className="absolute -top-3 right-8 z-20 pointer-events-none">
-                <JasmineBloom className="w-6 h-6 text-warm-50" />
+              <div className="absolute -top-2 right-8 z-20 pointer-events-none">
+                <JasmineBloom className="w-5 h-5 sm:w-6 sm:h-6 text-warm-50" />
               </div>
-              <div className="absolute -bottom-6 -left-4 sm:-left-8 z-20 pointer-events-none">
-                <OliveBranch className="w-14 h-14 sm:w-16 sm:h-16 text-sage-600 -rotate-45 drop-shadow-xs" />
+              <div className="absolute -bottom-4 left-0 sm:-left-6 z-20 pointer-events-none">
+                <OliveBranch className="w-12 h-12 sm:w-16 sm:h-16 text-sage-600 -rotate-45 drop-shadow-xs" />
               </div>
-              <div className="absolute bottom-2 -left-2 z-20 pointer-events-none">
-                <MarigoldFlower className="w-8 h-8 text-gold-500 drop-shadow-xs" />
+              <div className="absolute bottom-2 left-2 z-20 pointer-events-none">
+                <MarigoldFlower className="w-7 h-7 sm:w-8 sm:h-8 text-gold-500 drop-shadow-xs" />
               </div>
-              <div className="absolute top-1/2 -right-5 z-20 pointer-events-none hidden sm:block">
+              <div className="absolute top-1/2 -right-4 z-20 pointer-events-none hidden sm:block">
                 <OliveBranch className="w-10 h-10 text-sage-600 rotate-90" />
               </div>
 
               {/* Deckled Edge Paper Invitation Card Container */}
-              <div className="relative w-full max-w-md sm:max-w-lg bg-[#FAF7F2] rounded-3xl p-3 sm:p-4.5 invitation-frame botanical-shadow rotate-1 hover:rotate-0 transition-transform duration-500">
+              <div className="relative w-full max-w-sm sm:max-w-md lg:max-w-lg bg-white rounded-3xl p-3 sm:p-4.5 invitation-frame shadow-[0_12px_36px_-8px_rgba(70,50,40,0.12)] rotate-1 hover:rotate-0 transition-transform duration-500">
                 {/* Thin Inner Gold Border */}
                 <div className="border border-[#C49E64]/40 rounded-2xl p-2.5 sm:p-3 bg-[#FAF7F2]/90 flex flex-col items-center">
                   {/* Top Flourish */}
@@ -299,7 +304,7 @@ export default function LandingPage() {
                   </div>
 
                   {/* Main Wedding Artwork: User-Provided Watercolor Mandap Illustration */}
-                  <div className="relative w-full aspect-square max-h-[380px] sm:max-h-[420px] rounded-xl overflow-hidden bg-white/60 flex items-center justify-center p-2">
+                  <div className="relative w-full aspect-[4/3] sm:aspect-square max-h-[300px] sm:max-h-[400px] rounded-xl overflow-hidden bg-white/70 flex items-center justify-center p-2">
                     <Image
                       src="/illustrations/hero-mandap-watercolor.png"
                       alt="Refined hand-painted Indian wedding mandap ceremony illustration with bride, groom, havan kund, and floral pavilion"
@@ -329,37 +334,29 @@ export default function LandingPage() {
       <section id="functions" className="py-20 sm:py-28 bg-[#F5EFE6]/50 border-y border-[#E5DACB]/80 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           {/* Section Header */}
-          <div className="text-center max-w-2xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-terracotta-700 bg-white/80 px-3 py-1 rounded-full border border-terracotta-200">
-              <StarFlourish className="w-2 h-2 text-terracotta-600" />
-              Ceremonial Architecture
-              <StarFlourish className="w-2 h-2 text-terracotta-600" />
-            </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal font-serif text-charcoal-900 tracking-tight">
-              Every function deserves <br />
-              <span className="italic text-terracotta-600">its own journey.</span>
-            </h2>
-            <p className="text-xs sm:text-sm text-charcoal-600 leading-relaxed">
-              No generic buses. Each celebration — from afternoon Mehndi to midnight Sangeet — is configured with its own timing, vehicle fleet, and guest pickup logistics.
-            </p>
-          </div>
+          <SectionHeader
+            eyebrow="Ceremonial Architecture"
+            title="Every function deserves"
+            highlightedTitle="its own journey."
+            description="No generic buses. Each celebration — from afternoon Mehndi to midnight Sangeet — is configured with its own timing, vehicle fleet, and guest pickup logistics."
+          />
 
-          {/* Handcrafted Functions Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Handcrafted Functions Cards: Mobile Horizontal Swipe + Desktop Grid */}
+          <HorizontalCardScroller gridCols="md:grid-cols-2 lg:grid-cols-3">
             {FUNCTIONS_DATA.map((fn, idx) => (
               <div
                 key={fn.title}
-                className={`p-6 sm:p-7 rounded-3xl bg-[#FAF7F2] border border-[#E5DACB] shadow-2xs hover:shadow-md hover:border-gold-400 transition-all flex flex-col justify-between relative group ${
+                className={`p-6 sm:p-7 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-gold-400/60 transition-all duration-200 flex flex-col justify-between h-full relative group active:scale-[0.985] ${
                   idx === 3 ? 'md:col-span-2 lg:col-span-1 border-burgundy-300/80' : ''
                 }`}
               >
                 <div className="space-y-4">
                   {/* Top Bar with Tag and Timing */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-0.5 rounded-full bg-white border border-[#E5DACB] text-charcoal-700">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-0.5 rounded-full bg-warm-50 border border-warm-200 text-charcoal-700">
                       {fn.tag}
                     </span>
-                    <span className="text-xs font-mono font-medium text-charcoal-500 flex items-center gap-1">
+                    <span className="text-xs font-mono font-medium text-charcoal-500 flex items-center gap-1 shrink-0">
                       <Clock className="w-3.5 h-3.5 text-gold-600" />
                       {fn.timing}
                     </span>
@@ -370,13 +367,13 @@ export default function LandingPage() {
                     <h3 className="text-2xl font-serif font-normal text-charcoal-900 group-hover:text-terracotta-600 transition-colors">
                       {fn.title}
                     </h3>
-                    <p className="mt-2 text-xs text-charcoal-600 leading-relaxed">
+                    <p className="mt-2 text-xs text-charcoal-600 leading-relaxed font-sans">
                       {fn.desc}
                     </p>
                   </div>
 
                   {/* Transport Strategy Strip */}
-                  <div className="p-3.5 rounded-2xl bg-warm-100/70 border border-[#E5DACB]/60 space-y-1.5">
+                  <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] space-y-1.5">
                     <div className="text-[10px] uppercase font-bold text-charcoal-400 tracking-wider flex items-center gap-1.5">
                       <Car className="w-3.5 h-3.5 text-terracotta-600" />
                       Allocated Fleet
@@ -384,19 +381,19 @@ export default function LandingPage() {
                     <div className="text-xs font-semibold text-charcoal-800">
                       {fn.fleetType}
                     </div>
-                    <div className="text-[11px] text-charcoal-500 italic">
+                    <div className="text-[11px] text-charcoal-500 italic font-sans">
                       {fn.details}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-[#E5DACB]/60 flex items-center justify-between text-xs">
-                  <span className="text-[11px] font-medium text-charcoal-500">
+                <div className="mt-6 pt-4 border-t border-warm-100 flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-medium text-charcoal-400 font-sans">
                     Independent function manifest
                   </span>
                   <button
                     onClick={() => openAuthWithRole(UserRole.EVENT_ORGANIZER)}
-                    className="font-bold text-terracotta-600 hover:text-terracotta-700 flex items-center gap-1"
+                    className="font-bold text-terracotta-600 hover:text-terracotta-700 flex items-center gap-1 transition-colors"
                   >
                     <span>Configure</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -406,15 +403,15 @@ export default function LandingPage() {
             ))}
 
             {/* Final Card: Custom Ceremonies */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-terracotta-50 to-warm-50 border border-terracotta-200/80 shadow-2xs flex flex-col justify-between">
+            <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-terracotta-50/80 via-white to-warm-50 border border-terracotta-200 shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-terracotta-400/80 transition-all duration-200 flex flex-col justify-between h-full active:scale-[0.985]">
               <div className="space-y-4">
-                <span className="text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-0.5 rounded-full bg-white border border-terracotta-200 text-terracotta-800">
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] px-2.5 py-0.5 rounded-full bg-white border border-terracotta-200 text-terracotta-800 inline-block">
                   Bespoke Functions
                 </span>
                 <h3 className="text-2xl font-serif font-normal text-charcoal-900">
                   Custom Ceremonies & After-Parties
                 </h3>
-                <p className="text-xs text-charcoal-600 leading-relaxed">
+                <p className="text-xs text-charcoal-600 leading-relaxed font-sans">
                   Have a Sundowner Pool Party, Sufi Night, or Morning Baraat Assembly? Create as many standalone function records as your wedding requires.
                 </p>
               </div>
@@ -422,13 +419,13 @@ export default function LandingPage() {
               <div className="mt-6 pt-4 border-t border-terracotta-200/60">
                 <button
                   onClick={() => openAuthWithRole(UserRole.EVENT_ORGANIZER)}
-                  className="w-full py-2.5 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold uppercase tracking-wider transition-all"
+                  className="w-full py-2.5 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-xs hover:shadow-sm"
                 >
                   Create Custom Function
                 </button>
               </div>
             </div>
-          </div>
+          </HorizontalCardScroller>
         </div>
       </section>
 
@@ -436,81 +433,149 @@ export default function LandingPage() {
       {/* 4. SECTION 3: "FROM INVITATION TO ARRIVAL" (THE SAFAR JOURNEY)           */}
       {/* ========================================================================= */}
       <section id="journey" className="py-20 sm:py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        <div className="text-center max-w-2xl mx-auto space-y-3">
-          <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-terracotta-700 bg-terracotta-50 px-3 py-1 rounded-full border border-terracotta-200">
-            <StarFlourish className="w-2 h-2 text-terracotta-600" />
-            The 5-Stage Protocol
-            <StarFlourish className="w-2 h-2 text-terracotta-600" />
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal font-serif text-charcoal-900 tracking-tight">
-            From invitation <br />
-            <span className="italic text-terracotta-600">to graceful arrival.</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-charcoal-600 leading-relaxed">
-            A continuous handcrafted journey uniting hosts, guests, and ceremonial chauffeurs under one intuitive mobility rhythm.
-          </p>
-        </div>
+        <SectionHeader
+          eyebrow="The 5-Stage Protocol"
+          title="From invitation"
+          highlightedTitle="to graceful arrival."
+          description="A continuous handcrafted journey uniting hosts, guests, and ceremonial chauffeurs under one intuitive mobility rhythm."
+        />
 
-        {/* 5-Step Process Connected by Subtle Line */}
+        {/* 5-Step Process: Mobile Horizontal Swipe + Desktop 5-Column Line */}
         <div className="relative">
           {/* Subtle connecting line for desktop */}
-          <div className="hidden lg:block absolute top-1/2 left-8 right-8 h-0.5 border-t border-dashed border-[#C49E64]/60 -translate-y-6 pointer-events-none" />
+          <div className="hidden lg:block absolute top-1/2 left-8 right-8 h-0.5 border-t border-dashed border-[#C49E64]/50 -translate-y-6 pointer-events-none" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 relative z-10">
+          <HorizontalCardScroller gridCols="md:grid-cols-3 lg:grid-cols-5">
             {JOURNEY_STEPS.map((step) => (
               <div
                 key={step.num}
-                className="p-6 rounded-3xl bg-[#FAF7F2] border border-[#E5DACB] shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-gold-400/60 active:scale-[0.985] transition-all duration-200 flex flex-col justify-between h-full space-y-4 relative z-10"
               >
                 <div>
-                  <div className="w-10 h-10 rounded-2xl bg-white border border-[#E5DACB] text-terracotta-600 font-serif font-bold text-sm flex items-center justify-center shadow-2xs mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-terracotta-50 border border-terracotta-200/80 text-terracotta-700 font-serif font-bold text-sm flex items-center justify-center shadow-2xs mb-4">
                     {step.num}
                   </div>
                   <h3 className="text-xl font-serif font-normal text-charcoal-900">
                     {step.title}
                   </h3>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gold-700 mt-0.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gold-700 mt-0.5 font-sans">
                     {step.subtitle}
                   </div>
-                  <p className="text-xs text-charcoal-600 leading-relaxed mt-2.5">
+                  <p className="text-xs text-charcoal-600 leading-relaxed mt-2.5 font-sans">
                     {step.desc}
                   </p>
                 </div>
 
-                <div className="pt-2 text-[10px] text-charcoal-400 font-medium">
+                <div className="pt-2 text-[10px] text-charcoal-400 font-medium font-sans">
                   ✦ Stage {step.num} complete
                 </div>
               </div>
             ))}
-          </div>
+          </HorizontalCardScroller>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. SECTION 4: GUEST & FAMILY MANAGEMENT (EDITORIAL REPRESENTATION)        */}
+      {/* 5. SECTION 4: GUEST & FAMILY MANAGEMENT (ALTERNATING EDITORIAL COMPOSITION) */}
       {/* ========================================================================= */}
       <section id="families" className="py-20 sm:py-28 bg-[#F5EFE6]/60 border-y border-[#E5DACB]/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            {/* Left Narrative Text */}
-            <div className="lg:col-span-5 space-y-6">
-              <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sage-800 bg-sage-100/70 px-3 py-1 rounded-full border border-sage-200">
-                <Home className="w-3 h-3 text-sage-700" />
-                Family-Centric Hospitality
+          {/* Alternating Layout: Visual Manifests on Left, Narrative Text on Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Column (Desktop Order 1): Editorial Family Representation Cards */}
+            <div className="lg:col-span-7 space-y-4 lg:order-1">
+              {/* Example Card 1: The Shah Family */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-md hover:border-gold-400/60 transition-all space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-warm-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-terracotta-50 border border-terracotta-200 text-terracotta-700 flex items-center justify-center font-serif font-bold text-base shrink-0 shadow-2xs">
+                      S
+                    </div>
+                    <div>
+                      <h4 className="text-base font-serif font-bold text-charcoal-900">The Shah Family</h4>
+                      <span className="text-[11px] text-charcoal-500 font-sans">Groom’s Immediate Family • 4 Members</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Chauffeur Allocated
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-sans">
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Pickup Origin</span>
+                    <span className="font-bold text-charcoal-800">Ahmedabad Airport (AMD)</span>
+                    <span className="text-[11px] text-charcoal-500 block">Flight 6E-204 • 14:15 Arrival</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Destination</span>
+                    <span className="font-bold text-charcoal-800">Hyatt Regency</span>
+                    <span className="text-[11px] text-charcoal-500 block">Rooms 401 & 402</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Assigned Chauffeur</span>
+                    <span className="font-bold text-charcoal-800">Rohit Sharma</span>
+                    <span className="text-[11px] text-terracotta-600 block font-medium">Innova Crysta (GJ 01 AB 8899)</span>
+                  </div>
+                </div>
               </div>
 
-              <h2 className="text-3xl sm:text-4xl font-normal font-serif text-charcoal-900 tracking-tight">
+              {/* Example Card 2: The Patel Family */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-md hover:border-gold-400/60 transition-all space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-warm-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-sage-50 border border-sage-200 text-sage-700 flex items-center justify-center font-serif font-bold text-base shrink-0 shadow-2xs">
+                      P
+                    </div>
+                    <div>
+                      <h4 className="text-base font-serif font-bold text-charcoal-900">The Patel Family</h4>
+                      <span className="text-[11px] text-charcoal-500 font-sans">Bride’s Maternal Relatives • 2 Members</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Chauffeur Allocated
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-sans">
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Pickup Origin</span>
+                    <span className="font-bold text-charcoal-800">Gandhinagar Station</span>
+                    <span className="text-[11px] text-charcoal-500 block">Vande Bharat Express</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Destination</span>
+                    <span className="font-bold text-charcoal-800">Grand Bhagwati Banquet</span>
+                    <span className="text-[11px] text-charcoal-500 block">Sangeet Ceremony</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E8E2D9]">
+                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Assigned Chauffeur</span>
+                    <span className="font-bold text-charcoal-800">Vikramaditya Rao</span>
+                    <span className="text-[11px] text-terracotta-600 block font-medium">Toyota Camry (GJ 01 CD 4321)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column (Desktop Order 2): Narrative Text */}
+            <div className="lg:col-span-5 space-y-6 lg:order-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-sage-800 bg-white/90 px-3.5 py-1.5 rounded-full border border-sage-200 shadow-2xs">
+                <Home className="w-3.5 h-3.5 text-sage-700" />
+                <span>Family-Centric Hospitality</span>
+              </div>
+
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal font-serif text-charcoal-900 tracking-tight leading-[1.12]">
                 Families stay together, <br />
                 <span className="italic text-terracotta-600">from touchdown to mandap.</span>
               </h2>
 
-              <p className="text-xs sm:text-sm text-charcoal-600 leading-relaxed">
+              <p className="text-xs sm:text-sm text-charcoal-600 leading-relaxed font-sans">
                 We believe wedding guests should never be treated as isolated spreadsheet rows. SAFAR understands family hierarchies: the elders traveling with their children, party sizes, and luggage requirements are managed as cohesive units.
               </p>
 
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-2 font-sans">
                 <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-sage-200/80 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
+                  <div className="w-5 h-5 rounded-full bg-sage-100 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
                     ✓
                   </div>
                   <div className="text-xs text-charcoal-700 leading-normal">
@@ -519,7 +584,7 @@ export default function LandingPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-sage-200/80 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
+                  <div className="w-5 h-5 rounded-full bg-sage-100 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
                     ✓
                   </div>
                   <div className="text-xs text-charcoal-700 leading-normal">
@@ -528,7 +593,7 @@ export default function LandingPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-sage-200/80 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
+                  <div className="w-5 h-5 rounded-full bg-sage-100 text-sage-800 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
                     ✓
                   </div>
                   <div className="text-xs text-charcoal-700 leading-normal">
@@ -540,85 +605,10 @@ export default function LandingPage() {
               <div className="pt-2">
                 <button
                   onClick={() => openAuthWithRole(UserRole.EVENT_ORGANIZER)}
-                  className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold uppercase tracking-wider transition-all"
+                  className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-xs hover:shadow-sm"
                 >
                   Manage Guest Manifests
                 </button>
-              </div>
-            </div>
-
-            {/* Right Editorial Family Representation Cards */}
-            <div className="lg:col-span-7 space-y-4">
-              {/* Example Card 1: The Shah Family */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-[#FAF7F2] border border-[#E5DACB] shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-terracotta-50 border border-terracotta-200 text-terracotta-700 flex items-center justify-center font-serif font-bold text-base">
-                      S
-                    </div>
-                    <div>
-                      <h4 className="text-base font-serif font-bold text-charcoal-900">The Shah Family</h4>
-                      <span className="text-[11px] text-charcoal-500">Groom’s Immediate Family • 4 Members</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Chauffeur Allocated
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Pickup Origin</span>
-                    <span className="font-bold text-charcoal-800">Ahmedabad Airport (AMD)</span>
-                    <span className="text-[11px] text-charcoal-500 block">Flight 6E-204 • 14:15 Arrival</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Destination</span>
-                    <span className="font-bold text-charcoal-800">Hyatt Regency</span>
-                    <span className="text-[11px] text-charcoal-500 block">Rooms 401 & 402</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Assigned Chauffeur</span>
-                    <span className="font-bold text-charcoal-800">Rohit Sharma</span>
-                    <span className="text-[11px] text-terracotta-600 block font-medium">Innova Crysta (GJ 01 AB 8899)</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Example Card 2: The Patel Family */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-[#FAF7F2] border border-[#E5DACB] shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-sage-50 border border-sage-200 text-sage-700 flex items-center justify-center font-serif font-bold text-base">
-                      P
-                    </div>
-                    <div>
-                      <h4 className="text-base font-serif font-bold text-charcoal-900">The Patel Family</h4>
-                      <span className="text-[11px] text-charcoal-500">Bride’s Maternal Relatives • 2 Members</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Chauffeur Allocated
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Pickup Origin</span>
-                    <span className="font-bold text-charcoal-800">Gandhinagar Station</span>
-                    <span className="text-[11px] text-charcoal-500 block">Vande Bharat Express</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Destination</span>
-                    <span className="font-bold text-charcoal-800">Grand Bhagwati Banquet</span>
-                    <span className="text-[11px] text-charcoal-500 block">Sangeet Ceremony</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warm-100/60">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block uppercase">Assigned Chauffeur</span>
-                    <span className="font-bold text-charcoal-800">Vikramaditya Rao</span>
-                    <span className="text-[11px] text-terracotta-600 block font-medium">Toyota Camry (GJ 01 CD 4321)</span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -629,52 +619,46 @@ export default function LandingPage() {
       {/* 6. SECTION 5: THE CEREMONIAL FLEET                                        */}
       {/* ========================================================================= */}
       <section id="fleet" className="py-20 sm:py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        <div className="text-center max-w-2xl mx-auto space-y-3">
-          <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-terracotta-700 bg-terracotta-50 px-3 py-1 rounded-full border border-terracotta-200">
-            <Car className="w-3.5 h-3.5 text-terracotta-600" />
-            Curated Mobility
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-normal font-serif text-charcoal-900 tracking-tight">
-            Vehicles suited for <br />
-            <span className="italic text-terracotta-600">ceremonial grace.</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-charcoal-600 leading-relaxed">
-            All vehicle availability comes directly from your real host fleet database. No hardcoded or fictitious availability.
-          </p>
-        </div>
+        <SectionHeader
+          eyebrow="Curated Mobility"
+          title="Vehicles suited for"
+          highlightedTitle="ceremonial grace."
+          description="All vehicle availability comes directly from your real host fleet database. No hardcoded or fictitious availability."
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Fleet Cards: Mobile Horizontal Swipe + Desktop 4-Column Grid */}
+        <HorizontalCardScroller gridCols="md:grid-cols-2 lg:grid-cols-4">
           {FLEET_CATEGORIES.map((cat) => (
             <div
               key={cat.name}
-              className={`p-6 rounded-3xl bg-[#FAF7F2] border ${cat.accent} shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-5`}
+              className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-gold-400/60 active:scale-[0.985] transition-all duration-200 flex flex-col justify-between h-full space-y-5"
             >
               <div className="space-y-3">
-                <div className="w-10 h-10 rounded-2xl bg-white border border-[#E5DACB] text-terracotta-600 flex items-center justify-center shadow-2xs">
+                <div className="w-10 h-10 rounded-2xl bg-warm-50 border border-warm-200 text-terracotta-600 flex items-center justify-center shadow-2xs">
                   <Car className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-xl font-serif font-bold text-charcoal-900">{cat.name}</h3>
-                  <span className="text-[11px] text-terracotta-700 font-semibold block mt-0.5">
+                  <span className="text-[11px] text-terracotta-700 font-semibold block mt-0.5 font-sans">
                     {cat.idealFor}
                   </span>
                 </div>
-                <div className="text-xs text-charcoal-600 font-medium">
+                <div className="text-xs text-charcoal-600 font-medium font-sans">
                   {cat.capacity}
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#E5DACB]/80">
-                <span className="text-[10px] uppercase font-bold text-charcoal-400 block tracking-wider">
+              <div className="pt-4 border-t border-warm-100">
+                <span className="text-[10px] uppercase font-bold text-charcoal-400 block tracking-wider font-sans">
                   Representative Fleet
                 </span>
-                <span className="text-xs font-semibold text-charcoal-800">
+                <span className="text-xs font-semibold text-charcoal-800 font-sans mt-0.5 block">
                   {cat.models}
                 </span>
               </div>
             </div>
           ))}
-        </div>
+        </HorizontalCardScroller>
       </section>
 
       {/* ========================================================================= */}

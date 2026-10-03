@@ -139,21 +139,21 @@ export default function DriverDashboardPage() {
       {/* Top Status & GPS Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Duty Status Card */}
-        <div className="p-4 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)] flex items-center justify-between">
           <div className="space-y-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 font-sans">
               Shift Status
             </span>
-            <div className="text-base font-bold text-charcoal-900">
+            <div className="text-base font-bold text-charcoal-900 font-serif">
               {isOnDuty ? 'Available On Duty' : 'Off Duty (Shift Paused)'}
             </div>
           </div>
           <button
             onClick={() => setIsOnDuty(!isOnDuty)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border flex items-center gap-1.5 active:scale-[0.985] ${
               isOnDuty
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
-                : 'bg-charcoal-100 border-charcoal-200 text-charcoal-600'
+                : 'bg-warm-100 border-warm-200 text-charcoal-600'
             }`}
           >
             <span
@@ -166,11 +166,11 @@ export default function DriverDashboardPage() {
         </div>
 
         {/* Real-Time GPS Telemetry Card */}
-        <div className="p-4 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)] flex items-center justify-between">
           <div className="space-y-0.5">
             <div className="flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-safar-600 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400">
+              <Radio className="w-3.5 h-3.5 text-terracotta-600 animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 font-sans">
                 Live GPS Telemetry
               </span>
             </div>
@@ -180,10 +180,10 @@ export default function DriverDashboardPage() {
           </div>
           <button
             onClick={() => setIsGpsActive(!isGpsActive)}
-            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-colors ${
+            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-colors active:scale-[0.985] ${
               isGpsActive
-                ? 'bg-safar-50 text-safar-800 border border-safar-200'
-                : 'bg-charcoal-100 text-charcoal-500'
+                ? 'bg-warm-100 text-charcoal-800 border border-warm-200'
+                : 'bg-warm-50 text-charcoal-500 border border-warm-200'
             }`}
           >
             {isGpsActive ? 'Broadcasting' : 'Paused'}
@@ -192,17 +192,17 @@ export default function DriverDashboardPage() {
       </div>
 
       {/* Assigned Vehicle Card */}
-      <div className="p-5 rounded-3xl bg-charcoal-900 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-5 rounded-3xl bg-charcoal-900 text-white border border-[#E8E2D9]/10 shadow-[0_8px_30px_-4px_rgba(70,50,40,0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-charcoal-800 border border-charcoal-700 flex items-center justify-center text-safar-400">
+          <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-warm-200">
             <Car className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-charcoal-400">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-warm-400 font-sans">
               Assigned Fleet Vehicle
             </span>
-            <div className="text-base font-bold">{assignedVehicle.model}</div>
-            <div className="text-xs text-charcoal-300 font-mono mt-0.5">
+            <div className="text-base font-bold font-serif">{assignedVehicle.model}</div>
+            <div className="text-xs text-warm-300 font-mono mt-0.5">
               Plate: {assignedVehicle.plate} &bull; Capacity: {assignedVehicle.capacity} seats
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function DriverDashboardPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <Link
             href="/driver/duty"
-            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors"
+            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors border border-white/15 active:scale-[0.985]"
           >
             Vehicle Checklist
           </Link>
@@ -219,45 +219,45 @@ export default function DriverDashboardPage() {
       </div>
 
       {/* Next Trip Execution Card */}
-      <div className="p-6 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm space-y-5">
+      <div className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-safar-700">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-700 font-sans">
               Authorized Assignment
             </span>
-            <h3 className="text-lg font-bold text-charcoal-900">Next Trip Details</h3>
+            <h3 className="text-lg font-bold text-charcoal-900 font-serif">Next Trip Details</h3>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={tripState} size="sm" />
-            <span className="text-xs font-bold text-charcoal-900 font-mono bg-charcoal-100 px-2.5 py-1 rounded-lg">
+            <span className="text-xs font-bold text-charcoal-900 font-mono bg-warm-100 px-2.5 py-1 rounded-lg border border-warm-200">
               {nextTrip.pickupTime}
             </span>
           </div>
         </div>
 
         {/* Route Progression Timeline */}
-        <div className="space-y-4 relative pl-7 before:absolute before:left-2.5 before:top-2.5 before:bottom-2.5 before:w-0.5 before:bg-charcoal-200">
+        <div className="space-y-4 relative pl-7 before:absolute before:left-2.5 before:top-2.5 before:bottom-2.5 before:w-0.5 before:bg-warm-200">
           <div className="relative">
             <span className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-charcoal-900 ring-4 ring-white" />
             <div className="text-xs font-bold text-charcoal-900">{nextTrip.pickup}</div>
-            <div className="text-[11px] text-charcoal-500">{nextTrip.pickupCity}</div>
+            <div className="text-[11px] text-charcoal-500 font-sans">{nextTrip.pickupCity}</div>
           </div>
           <div className="relative">
-            <span className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-safar-600 ring-4 ring-white" />
+            <span className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-terracotta-600 ring-4 ring-white" />
             <div className="text-xs font-bold text-charcoal-900">{nextTrip.destination}</div>
-            <div className="text-[11px] text-charcoal-500">{nextTrip.destinationCity}</div>
+            <div className="text-[11px] text-charcoal-500 font-sans">{nextTrip.destinationCity}</div>
           </div>
         </div>
 
         {/* Passenger Manifest Row */}
-        <div className="p-3.5 rounded-2xl bg-warm-50 border border-charcoal-100 flex items-center justify-between text-xs">
+        <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] flex items-center justify-between text-xs font-sans">
           <div className="flex items-center gap-2 text-charcoal-700 font-medium">
-            <Users className="w-4 h-4 text-safar-600" />
+            <Users className="w-4 h-4 text-terracotta-600" />
             <span>{nextTrip.passengerNames} ({nextTrip.passengers} passengers)</span>
           </div>
           <button
             onClick={() => setShowVerifyModal(true)}
-            className="text-xs font-bold text-safar-700 hover:text-safar-800 flex items-center gap-1"
+            className="text-xs font-bold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 transition-colors"
           >
             <CheckSquare className="w-3.5 h-3.5" />
             Verify Boarding Code
@@ -268,12 +268,12 @@ export default function DriverDashboardPage() {
         <div className="space-y-2">
           <button
             onClick={handleNextStep}
-            className="w-full py-4 rounded-2xl font-bold text-sm text-white bg-safar-600 hover:bg-safar-700 shadow-md shadow-safar-600/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-wider text-white bg-terracotta-600 hover:bg-terracotta-700 shadow-md shadow-terracotta-600/20 active:scale-[0.985] transition-all flex items-center justify-center gap-2"
           >
             <Navigation className="w-4 h-4" />
             {getActionButtonLabel()}
           </button>
-          <div className="text-center text-[11px] text-charcoal-400">
+          <div className="text-center text-[11px] text-charcoal-400 font-sans">
             Current Phase: <strong className="text-charcoal-700">{tripState.replace(/_/g, ' ')}</strong>. Every state transition updates Host and Guest dashboards live.
           </div>
         </div>
@@ -281,15 +281,15 @@ export default function DriverDashboardPage() {
 
       {/* Today's Trips Schedule & SOS Alert */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 p-6 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm space-y-4">
+        <div className="md:col-span-2 p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-sm text-charcoal-900">Today&apos;s Trip Roster</h4>
-            <Link href="/driver/trips" className="text-xs font-semibold text-safar-700 hover:text-safar-800">
+            <h4 className="font-bold text-sm text-charcoal-900 font-serif">Today&apos;s Trip Roster</h4>
+            <Link href="/driver/trips" className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 font-sans">
               View All
             </Link>
           </div>
 
-          <div className="divide-y divide-charcoal-100">
+          <div className="divide-y divide-warm-100 font-sans">
             {todaysTrips.map((t, idx) => (
               <div key={idx} className="py-3 flex items-center justify-between text-xs first:pt-0 last:pb-0">
                 <div className="space-y-0.5">
@@ -297,7 +297,7 @@ export default function DriverDashboardPage() {
                   <div className="text-charcoal-600 font-medium">{t.route}</div>
                   <div className="text-[11px] text-charcoal-400">{t.passengers}</div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-charcoal-100 text-charcoal-700">
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-warm-100 text-charcoal-700 border border-warm-200">
                   {t.status}
                 </span>
               </div>
@@ -306,20 +306,20 @@ export default function DriverDashboardPage() {
         </div>
 
         {/* SOS Emergency Dispatch Alert */}
-        <div className="p-6 rounded-3xl bg-rose-50 border border-rose-200 flex flex-col justify-between space-y-4">
+        <div className="p-6 rounded-3xl bg-burgundy-50 border border-burgundy-200 flex flex-col justify-between space-y-4 shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)]">
           <div className="space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-2xl bg-burgundy-800 text-white flex items-center justify-center font-black">
               SOS
             </div>
-            <h4 className="font-bold text-sm text-rose-900">Emergency Dispatch</h4>
-            <p className="text-xs text-rose-700 leading-relaxed">
+            <h4 className="font-bold text-sm text-burgundy-900 font-serif">Emergency Dispatch</h4>
+            <p className="text-xs text-burgundy-700 leading-relaxed font-sans">
               Instantly broadcast high-priority audio &amp; visual alerts with your live coordinates to Host Operations.
             </p>
           </div>
 
           <button
             onClick={() => setShowSOSModal(true)}
-            className="w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-all"
+            className="w-full py-3 rounded-full bg-burgundy-800 hover:bg-burgundy-900 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-[0.985]"
           >
             Broadcast Emergency SOS
           </button>

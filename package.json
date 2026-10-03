@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "SAFAR — Production-ready end-to-end transportation platform for weddings, corporate events and organized event transportation.",
+  "engines": {
+    "node": "22.x"
+  },
   "workspaces": [
     "apps/*",
     "services/*",

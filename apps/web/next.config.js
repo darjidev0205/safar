@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,6 +11,14 @@ const nextConfig = {
         hostname: 'images.unsplash.com',
       },
     ],
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      react: path.dirname(require.resolve('react')),
+      'react-dom': path.dirname(require.resolve('react-dom')),
+    };
+    return config;
   },
   async rewrites() {
     return [

@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { cn } from './utils';
 import { Search as SearchIcon } from 'lucide-react';

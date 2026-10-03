@@ -45,7 +45,22 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const defaultAuthContext: AuthContextType = {
+  authStatus: 'AUTH_LOADING',
+  firebaseUser: null,
+  profile: null,
+  role: null,
+  activeEvent: null,
+  setActiveEvent: () => {},
+  signInGoogle: async () => { throw new Error('Auth not initialized'); },
+  signInEmail: async () => { throw new Error('Auth not initialized'); },
+  signUpEmail: async () => { throw new Error('Auth not initialized'); },
+  updateUserProfile: async () => { throw new Error('Auth not initialized'); },
+  logout: async () => {},
+  refreshProfile: async () => {},
+};
+
+const AuthContext = createContext<AuthContextType>(defaultAuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('AUTH_LOADING');
@@ -439,8 +454,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return context || defaultAuthContext;
 }

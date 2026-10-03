@@ -62,7 +62,7 @@ export class FleetService {
       where: {
         OR: [
           ...(data.phoneNumber ? [{ phoneNumber: data.phoneNumber }] : []),
-          ...(data.email ? [{ email: { equals: data.email.toLowerCase().trim(), mode: 'insensitive' } }] : []),
+          ...(data.email ? [{ email: { equals: data.email.toLowerCase().trim(), mode: 'insensitive' as const } }] : []),
         ],
       },
     });

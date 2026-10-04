@@ -26,7 +26,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
 
   return (
     <AuthGuard allowedRoles={[UserRole.GUEST, UserRole.EVENT_ORGANIZER, UserRole.ACCOUNT_OWNER]}>
-      <div className="min-h-screen bg-[#FAF7F2] text-[#1F2421] flex flex-col font-sans selection:bg-terracotta-100 selection:text-terracotta-900 paper-texture pb-28 md:pb-12">
+      <div className="min-h-screen bg-[#FAF7F2] text-[#1F2421] flex flex-col font-sans selection:bg-terracotta-100 selection:text-terracotta-900 paper-texture pb-28 md:pb-12 overflow-x-hidden min-w-0">
         {/* ========================================================================= */}
         {/* TOP EDITORIAL MASTHEAD                                                    */}
         {/* ========================================================================= */}
@@ -95,7 +95,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
         {/* ========================================================================= */}
         {/* MAIN RESPONSIVE CONTENT AREA                                              */}
         {/* ========================================================================= */}
-        <main className="flex-1 w-full max-w-xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 sm:px-6 pt-5 sm:pt-7">
+        <main className="flex-1 w-full max-w-xl md:max-w-3xl lg:max-w-4xl mx-auto px-4 sm:px-6 pt-5 sm:pt-7 min-w-0">
           {children}
         </main>
 

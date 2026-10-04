@@ -25,16 +25,24 @@ export function SafarLogo({
     lg: 'text-2xl',
   };
 
+  const pixelSizes = {
+    sm: 24,
+    md: 32,
+    lg: 40,
+  };
+
   if (variant === 'editorial') {
     return (
-      <div className={`flex items-center gap-2.5 ${className}`}>
+      <div className={`flex items-center gap-2.5 shrink-0 ${className}`}>
         {/* Editorial Handcrafted Sun/Lotus Emblem */}
         <div className={`relative ${iconSizes[size]} flex items-center justify-center shrink-0`}>
           <svg
+            width={pixelSizes[size]}
+            height={pixelSizes[size]}
             viewBox="0 0 36 36"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full text-terracotta-600"
+            className="w-full h-full text-terracotta-600 block shrink-0"
           >
             <circle cx="18" cy="18" r="14.5" stroke="#C49E64" strokeWidth="1" strokeDasharray="1.5 1.5" />
             <path
@@ -69,13 +77,15 @@ export function SafarLogo({
   }
 
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      <div className={`relative ${iconSizes[size]} flex items-center justify-center`}>
+    <div className={`flex items-center gap-2.5 shrink-0 ${className}`}>
+      <div className={`relative ${iconSizes[size]} flex items-center justify-center shrink-0`}>
         <svg
+          width={pixelSizes[size]}
+          height={pixelSizes[size]}
           viewBox="0 0 48 48"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full drop-shadow-sm"
+          className="w-full h-full drop-shadow-sm block shrink-0"
         >
           <path
             d="M38 12C38 7.58172 34.4183 4 30 4H14C9.58172 4 6 7.58172 6 12C6 16.4183 9.58172 20 14 20H34C38.4183 20 42 23.5817 42 28C42 32.4183 38.4183 36 34 36H16C11.5817 36 8 39.5817 8 44"

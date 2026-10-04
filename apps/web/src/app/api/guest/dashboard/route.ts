@@ -229,28 +229,33 @@ export async function GET(req: NextRequest) {
       sortedFunctions[0];
 
     // 4. Resolve Guest Transport / Trip
-    // Search for trip assigned to this guest's event or booking
-    let activeTrip: any = await prisma.trip.findFirst({
-      where: {
-        eventId: eventRecord.id,
-        status: {
-          in: ['IN_TRANSIT', 'EN_ROUTE_TO_PICKUP', 'ARRIVED', 'SCHEDULED', 'ASSIGNED', 'BOARDING'],
+    // Strictly search for trip assigned to THIS guest's booking
+    let activeTrip: any = null;
+    if (guestRecord) {
+      activeTrip = await prisma.trip.findFirst({
+        where: {
+          eventId: eventRecord.id,
+          status: {
+            in: ['IN_TRANSIT', 'EN_ROUTE_TO_PICKUP', 'ARRIVED', 'SCHEDULED', 'ASSIGNED', 'BOARDING'],
+          },
+          bookings: {
+            some: { guestId: guestRecord.id },
+          },
         },
-      },
-      include: {
-        vehicle: true,
-        driver: { include: { user: true } },
-        originPlace: true,
-        destinationPlace: true,
-        bookings: {
-          where: guestRecord ? { guestId: guestRecord.id } : undefined,
-          include: { guest: true },
+        include: {
+          vehicle: true,
+          driver: { include: { user: true } },
+          originPlace: true,
+          destinationPlace: true,
+          bookings: {
+            where: { guestId: guestRecord.id },
+            include: { guest: true },
+          },
         },
-      },
-      orderBy: { scheduledPickupTime: 'asc' },
-    });
+        orderBy: { scheduledPickupTime: 'asc' },
+      });
+    }
 
-    // Fallback: check any assigned vehicle/driver in the event's fleet
     let rideData: any = null;
 
     if (activeTrip) {
@@ -261,8 +266,8 @@ export async function GET(req: NextRequest) {
       const destLat = activeTrip.destinationPlace?.latitude || 23.0338;
       const destLng = activeTrip.destinationPlace?.longitude || 72.585;
 
-      const driverLat = vehicle?.currentLat || originLat + 0.008;
-      const driverLng = vehicle?.currentLng || originLng + 0.005;
+      const driverLat = vehicle?.currentLat || originLat;
+      const driverLng = vehicle?.currentLng || originLng;
 
       const distanceToPickup = calculateDistanceKm(driverLat, driverLng, originLat, originLng);
       const estMinutes = Math.max(3, Math.round(distanceToPickup * 3.2));
@@ -300,62 +305,13 @@ export async function GET(req: NextRequest) {
           : null,
         driver: activeTrip.driver
           ? {
-              name: driverUser?.fullName || 'Assigned Chauffeur',
-              phone: driverUser?.phoneNumber || '+91 98765 43210',
+              // Guest privacy boundary: First name and avatar only
+              name: driverUser?.fullName ? driverUser.fullName.split(' ')[0] : 'Assigned Chauffeur',
               avatarUrl: driverUser?.avatarUrl || null,
-              licenseNumber: activeTrip.driver.licenseNumber || 'GJ-2024-SAFAR',
             }
           : null,
         boardingCode: activeTrip.bookings?.[0]?.boardingCode || '4827',
       };
-    } else {
-      // Check if there is an existing vehicle in the account for this event
-      const fleetVehicle = await prisma.vehicle.findFirst({
-        where: { accountId: eventRecord.accountId, isActive: true },
-        include: {
-          drivers: { include: { user: true } },
-        },
-      });
-
-      if (fleetVehicle) {
-        const assignedDriver = fleetVehicle.drivers[0];
-        rideData = {
-          tripId: 'provisional',
-          status: 'DRIVER_ASSIGNED',
-          pickupTime: new Date(Date.now() + 45 * 60000).toISOString(),
-          pickupLocation: guestRecord?.pickupLocation || 'Guest Accommodation Entrance',
-          pickupAddress: 'Hospitality Pick-up Point',
-          pickupCoordinates: { lat: 23.0225, lng: 72.5714 },
-          destinationVenue: nextFunction?.venueName || eventRecord.venueName || 'Ceremonial Pavilion',
-          destinationAddress: nextFunction?.venueAddress || eventRecord.city,
-          destinationCoordinates: { lat: 23.0338, lng: 72.585 },
-          distanceKm: 2.4,
-          etaMinutes: 8,
-          vehicle: {
-            model: fleetVehicle.model,
-            plateNumber: fleetVehicle.plateNumber,
-            category: fleetVehicle.category,
-            capacity: fleetVehicle.capacity,
-            currentLat: 23.028,
-            currentLng: 72.575,
-            lastPingAt: new Date().toISOString(),
-          },
-          driver: assignedDriver
-            ? {
-                name: assignedDriver.user.fullName,
-                phone: assignedDriver.user.phoneNumber || '+91 98765 43210',
-                avatarUrl: assignedDriver.user.avatarUrl,
-                licenseNumber: assignedDriver.licenseNumber,
-              }
-            : {
-                name: 'Rahul Patel',
-                phone: '+91 98765 43210',
-                avatarUrl: null,
-                licenseNumber: 'GJ01-2024-SAFAR',
-              },
-          boardingCode: '5829',
-        };
-      }
     }
 
     return NextResponse.json({

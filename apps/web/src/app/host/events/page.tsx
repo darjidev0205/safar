@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { EventWizardModal } from '../../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../../components/host/edit-event-modal';
+import { EventAccessCodesModal } from '../../../components/host/event-access-codes-modal';
+import { AccessRequestsPanel } from '../../../components/host/access-requests-panel';
 import { useAuth } from '../../../context/auth-context';
 import { StarFlourish, MarigoldFlower } from '../../../components/ui/botanical-ornaments';
 import { SafarBadge, SafarButton, SafarEmptyState } from '../../../components/ui/safar-design-system';
@@ -29,11 +31,14 @@ export default function HostEventsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('ALL');
+  const [mainTab, setMainTab] = useState<'EVENTS' | 'REQUESTS'>('EVENTS');
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [accessCodesEvent, setAccessCodesEvent] = useState<any | null>(null);
+  const [isAccessCodesModalOpen, setIsAccessCodesModalOpen] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -185,35 +190,65 @@ export default function HostEventsPage() {
         </button>
       </div>
 
-      {/* Filter Tabs by Function Type */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 font-sans">
-        {['ALL', 'SANGEET', 'MEHNDI', 'HALDI', 'WEDDING', 'RECEPTION', 'CUSTOM'].map((t) => {
-          const isActive = filterType === t;
-          return (
-            <button
-              key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                isActive
-                  ? 'bg-charcoal-900 text-white shadow-2xs'
-                  : 'bg-white/90 text-charcoal-700 hover:bg-warm-100/70 border border-warm-300/80'
-              }`}
-            >
-              {t === 'ALL' ? 'All Ceremonies' : t}
-            </button>
-          );
-        })}
+      {/* Main Tab Switcher: Ceremonies vs Access Requests */}
+      <div className="flex items-center gap-2 border-b border-warm-200/80 pb-3">
+        <button
+          onClick={() => setMainTab('EVENTS')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            mainTab === 'EVENTS'
+              ? 'bg-charcoal-900 text-white shadow-xs'
+              : 'text-charcoal-600 hover:text-charcoal-900 hover:bg-warm-100/50'
+          }`}
+        >
+          Ceremonies &amp; Functions ({events.length})
+        </button>
+
+        <button
+          onClick={() => setMainTab('REQUESTS')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+            mainTab === 'REQUESTS'
+              ? 'bg-terracotta-600 text-white shadow-xs'
+              : 'text-charcoal-600 hover:text-charcoal-900 hover:bg-warm-100/50'
+          }`}
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          <span>Access Requests</span>
+        </button>
       </div>
 
-      {/* Empty State */}
-      {events.length === 0 && !loading && (
-        <SafarEmptyState
-          title="No Ceremonies Planned Yet"
-          description="Your celebration starts with your first ceremony. Create Sangeet, Mehndi, Haldi, Wedding Rituals, or Reception to begin allocating family transport."
-          actionText="Create Ceremony"
-          onAction={() => setIsWizardOpen(true)}
-        />
-      )}
+      {mainTab === 'REQUESTS' ? (
+        <AccessRequestsPanel />
+      ) : (
+        <>
+          {/* Filter Tabs by Function Type */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 font-sans">
+            {['ALL', 'SANGEET', 'MEHNDI', 'HALDI', 'WEDDING', 'RECEPTION', 'CUSTOM'].map((t) => {
+              const isActive = filterType === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setFilterType(t)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'bg-charcoal-900 text-white shadow-2xs'
+                      : 'bg-white/90 text-charcoal-700 hover:bg-warm-100/70 border border-warm-300/80'
+                  }`}
+                >
+                  {t === 'ALL' ? 'All Ceremonies' : t}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Empty State */}
+          {events.length === 0 && !loading && (
+            <SafarEmptyState
+              title="No Ceremonies Planned Yet"
+              description="Your celebration starts with your first ceremony. Create Sangeet, Mehndi, Haldi, Wedding Rituals, or Reception to begin allocating family transport."
+              actionText="Create Ceremony"
+              onAction={() => setIsWizardOpen(true)}
+            />
+          )}
 
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -294,6 +329,50 @@ export default function HostEventsPage() {
                     Active
                   </span>
                 </div>
+
+                {/* EVENT ACCESS CODES BAR */}
+                <div className="p-3 rounded-2xl bg-[#FCFAF6] border border-[#E8E2D9] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-charcoal-700 uppercase tracking-wider flex items-center gap-1">
+                      <KeyRound className="w-3 h-3 text-terracotta-600" />
+                      Event Access Codes
+                    </span>
+                    <button
+                      onClick={() => {
+                        setAccessCodesEvent(event);
+                        setIsAccessCodesModalOpen(true);
+                      }}
+                      className="text-[10px] font-bold text-terracotta-700 hover:text-terracotta-800 underline"
+                    >
+                      Manage / Regenerate
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
+                    <div
+                      onClick={() => {
+                        setAccessCodesEvent(event);
+                        setIsAccessCodesModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg bg-white border border-[#E8E2D9] cursor-pointer hover:border-terracotta-400 transition-colors"
+                      title="Click to view & copy Driver Code"
+                    >
+                      <span className="text-[9px] font-sans font-semibold text-charcoal-400 block">DRIVER</span>
+                      <strong className="text-charcoal-900 text-xs tracking-wider">{event.driverAccessCode || 'DRV---'}</strong>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setAccessCodesEvent(event);
+                        setIsAccessCodesModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg bg-white border border-[#E8E2D9] cursor-pointer hover:border-emerald-400 transition-colors"
+                      title="Click to view & copy Guest Code"
+                    >
+                      <span className="text-[9px] font-sans font-semibold text-charcoal-400 block">GUEST</span>
+                      <strong className="text-charcoal-900 text-xs tracking-wider">{event.guestAccessCode || event.joinCode || 'GST---'}</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -343,6 +422,21 @@ export default function HostEventsPage() {
           );
         })}
       </div>
+      </>
+      )}
+
+      {/* Access Codes Modal */}
+      {accessCodesEvent && (
+        <EventAccessCodesModal
+          isOpen={isAccessCodesModalOpen}
+          onClose={() => {
+            setIsAccessCodesModalOpen(false);
+            setAccessCodesEvent(null);
+          }}
+          event={accessCodesEvent}
+          onCodesUpdated={() => fetchEvents()}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       {deletingEvent && (
@@ -395,7 +489,7 @@ export default function HostEventsPage() {
             setEditingEvent(null);
           }}
           onSave={() => {
-            showToast('Function updated successfully.');
+            showToast('Ceremony updated successfully!');
             fetchEvents();
           }}
         />

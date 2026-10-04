@@ -78,8 +78,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const email = user.email || '';
       const uid = user.uid || '';
-      const meRes = await fetch(`/api/auth/me?email=${encodeURIComponent(email)}&uid=${encodeURIComponent(uid)}`, {
-        headers: { Authorization: `Bearer ${email || uid}` },
+      const roleParam = fallbackRole ? `&targetRole=${encodeURIComponent(fallbackRole)}` : '';
+      const meRes = await fetch(`/api/auth/me?email=${encodeURIComponent(email)}&uid=${encodeURIComponent(uid)}${roleParam}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-email': email,
+          'x-user-uid': uid,
+          ...(fallbackRole ? { 'x-target-role': fallbackRole } : {}),
+        },
       });
       if (meRes.ok) {
         const meData = await meRes.json();
@@ -119,11 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Determine role if new user
-    let userRole = fallbackRole || UserRole.EVENT_ORGANIZER;
+    let userRole = fallbackRole || UserRole.GUEST;
     if (user.email && user.email.toLowerCase().includes('driver')) {
       userRole = UserRole.DRIVER;
-    } else if (user.email && user.email.toLowerCase().includes('guest')) {
-      userRole = UserRole.GUEST;
+    } else if (user.email && (user.email.toLowerCase().includes('host') || user.email.toLowerCase().includes('organizer'))) {
+      userRole = UserRole.EVENT_ORGANIZER;
     }
 
     const fallbackProfile: UserProfile = {
@@ -148,51 +154,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Central Firebase Auth Lifecycle listener
   useEffect(() => {
+    let mounted = true;
+
+    // Safety timeout: if onAuthStateChanged hasn't resolved within 1.5s, release AUTH_LOADING
+    const safetyTimer = setTimeout(() => {
+      if (mounted && authStatus === 'AUTH_LOADING') {
+        setAuthStatus('UNAUTHENTICATED');
+      }
+    }, 1500);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!mounted) return;
       if (user) {
         setFirebaseUser(user);
         try {
           await resolveProfile(user);
-          setAuthStatus('AUTHENTICATED');
+          if (mounted) setAuthStatus('AUTHENTICATED');
         } catch (err) {
           console.error('Error resolving user profile on auth state changed:', err);
-          setAuthStatus('UNAUTHENTICATED');
+          if (mounted) setAuthStatus('UNAUTHENTICATED');
         }
       } else {
-        // Check if an explicit authenticated session was saved in localStorage
-        if (typeof window !== 'undefined') {
-          const savedSession = localStorage.getItem('safar_authenticated_session');
-          if (savedSession) {
-            try {
-              const parsed = JSON.parse(savedSession);
-              if (parsed && parsed.role && parsed.fullName) {
-                setProfile(parsed);
-                setRole(parsed.role);
-                setAuthStatus('AUTHENTICATED');
-                return;
-              }
-            } catch (e) {
-              // ignore
-            }
+        // STRICTLY UNAUTHENTICATED — NO STALE SESSIONS ALLOWED
+        if (mounted) {
+          setFirebaseUser(null);
+          setProfile(null);
+          setRole(null);
+          setActiveEvent(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('safar_auth_token');
+            localStorage.removeItem('safar_dev_token');
+            localStorage.removeItem('safar_dev_role');
+            localStorage.removeItem('safar_authenticated_session');
           }
+          setAuthStatus('UNAUTHENTICATED');
         }
-
-        // STRICTLY UNAUTHENTICATED — NO MOCK USER! NO FAKE SESSIONS!
-        setFirebaseUser(null);
-        setProfile(null);
-        setRole(null);
-        setActiveEvent(null);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('safar_auth_token');
-          localStorage.removeItem('safar_dev_token');
-          localStorage.removeItem('safar_dev_role');
-          localStorage.removeItem('safar_authenticated_session');
-        }
-        setAuthStatus('UNAUTHENTICATED');
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, [resolveProfile]);
 
   const refreshProfile = async () => {

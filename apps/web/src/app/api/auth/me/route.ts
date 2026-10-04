@@ -74,17 +74,28 @@ export async function GET(req: NextRequest) {
     if (!user) {
       const emailVal = resolvedEmail;
       const uidVal = resolvedFirebaseUid || `uid_${Date.now()}`;
+      const requestedRoleParam = req.headers.get('x-target-role') || req.nextUrl.searchParams.get('role') || req.nextUrl.searchParams.get('targetRole');
 
       if (emailVal) {
         const cleanEmail = String(emailVal).toLowerCase().trim();
         const displayName = cleanEmail.split('@')[0];
         const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
+        // Determine appropriate initial role
+        let initialRole: any = 'GUEST';
+        if (requestedRoleParam && ['DRIVER', 'GUEST', 'EVENT_ORGANIZER', 'ACCOUNT_OWNER'].includes(requestedRoleParam.toUpperCase())) {
+          initialRole = requestedRoleParam.toUpperCase();
+        } else if (cleanEmail.includes('driver')) {
+          initialRole = 'DRIVER';
+        } else if (cleanEmail.includes('host') || cleanEmail.includes('organizer')) {
+          initialRole = 'EVENT_ORGANIZER';
+        }
+
         user = await prisma.$transaction(async (tx) => {
           // Double check if user exists by email before any creation
           let u = await tx.user.findFirst({
             where: { email: { equals: cleanEmail, mode: 'insensitive' } },
-            include: { accountMembers: { include: { account: true } } },
+            include: { accountMembers: { include: { account: true } }, drivers: true, guests: true },
           });
 
           if (u) {
@@ -95,7 +106,7 @@ export async function GET(req: NextRequest) {
                 u = await tx.user.update({
                   where: { id: u.id },
                   data: { firebaseUid: String(uidVal) },
-                  include: { accountMembers: { include: { account: true } } },
+                  include: { accountMembers: { include: { account: true } }, drivers: true, guests: true },
                 });
               }
             }
@@ -109,30 +120,69 @@ export async function GET(req: NextRequest) {
                 firebaseUid: finalUid,
                 email: cleanEmail,
                 fullName: formattedName,
-                role: 'EVENT_ORGANIZER',
+                role: initialRole,
               },
-              include: { accountMembers: { include: { account: true } } },
+              include: { accountMembers: { include: { account: true } }, drivers: true, guests: true },
             });
           }
 
-          // Ensure user has at least one account if host role
-          if (!u.accountMembers || u.accountMembers.length === 0) {
-            const slug = `org-${u.id.slice(0, 8)}-${Date.now().toString(36)}`;
-            const acc = await tx.account.create({
-              data: {
-                name: `${formattedName}'s Events`,
-                slug,
-                ownerId: u.id,
-              },
-            });
+          // Ensure role-specific entities exist
+          if (u.role === 'EVENT_ORGANIZER' || u.role === 'ACCOUNT_OWNER') {
+            if (!u.accountMembers || u.accountMembers.length === 0) {
+              const slug = `org-${u.id.slice(0, 8)}-${Date.now().toString(36)}`;
+              const acc = await tx.account.create({
+                data: {
+                  name: `${formattedName}'s Events`,
+                  slug,
+                  ownerId: u.id,
+                },
+              });
 
-            await tx.accountMember.create({
-              data: {
-                accountId: acc.id,
-                userId: u.id,
-                role: 'ACCOUNT_OWNER',
-              },
-            });
+              await tx.accountMember.create({
+                data: {
+                  accountId: acc.id,
+                  userId: u.id,
+                  role: 'ACCOUNT_OWNER',
+                },
+              });
+            }
+          } else if (u.role === 'DRIVER') {
+            const existingDriver = await tx.driver.findFirst({ where: { userId: u.id } });
+            if (!existingDriver) {
+              // Find or create default account for driver link
+              let defaultAcc = await tx.account.findFirst();
+              if (!defaultAcc) {
+                defaultAcc = await tx.account.create({
+                  data: {
+                    name: 'SAFAR Fleet Services',
+                    slug: `fleet-${Date.now().toString(36)}`,
+                    ownerId: u.id,
+                  },
+                });
+              }
+              await tx.driver.create({
+                data: {
+                  userId: u.id,
+                  accountId: defaultAcc.id,
+                  licenseNumber: `DL-${u.id.slice(0, 6).toUpperCase()}`,
+                  isVerified: true,
+                  approvalStatus: 'APPROVED',
+                  dutyStatus: 'AVAILABLE',
+                },
+              });
+            }
+          } else if (u.role === 'GUEST') {
+            const existingGuest = await tx.guest.findFirst({ where: { userId: u.id } });
+            if (!existingGuest) {
+              await tx.guest.create({
+                data: {
+                  userId: u.id,
+                  fullName: u.fullName,
+                  email: u.email,
+                  status: 'CONFIRMED',
+                },
+              });
+            }
           }
 
           return tx.user.findUnique({

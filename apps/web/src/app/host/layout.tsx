@@ -78,14 +78,14 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
   };
   return (
     <AuthGuard allowedRoles={[UserRole.EVENT_ORGANIZER, UserRole.ACCOUNT_OWNER, UserRole.SUPER_ADMIN]}>
-      <div className="min-h-screen w-full flex bg-warm-50 paper-texture text-charcoal-900 font-sans">
+      <div className="min-h-screen w-full flex bg-warm-50 paper-texture text-charcoal-900 font-sans overflow-x-hidden">
         {/* Sidebar - Desktop and Tablet Only */}
         <div className="hidden md:flex shrink-0">
           <HostSidebar currentTab={currentTab} onTabChange={handleTabChange} />
         </div>
 
         {/* Main Viewport Content Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           <HostHeader
             events={events}
             selectedEvent={selectedEvent}

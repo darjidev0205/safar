@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import { SafarButton } from '../../../components/ui/safar-design-system';
+import { PlaceAutocomplete } from '../../../components/ui/place-autocomplete';
 
 export interface TripRecord {
   id: string;
@@ -334,27 +335,23 @@ export default function HostTripsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">Origin / Pickup *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Pickup venue"
-                    value={editingTrip.origin}
-                    onChange={(e) => setEditingTrip({ ...editingTrip, origin: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                  <PlaceAutocomplete
+                    placeholder="Search hotel, airport, or venue..."
+                    defaultValue={editingTrip.origin}
+                    onPlaceSelect={(place) => setEditingTrip({ ...editingTrip, origin: place.address || place.name })}
+                    className="w-full"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">Destination / Drop *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Drop destination"
-                    value={editingTrip.dest}
-                    onChange={(e) => setEditingTrip({ ...editingTrip, dest: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                  <PlaceAutocomplete
+                    placeholder="Search destination venue..."
+                    defaultValue={editingTrip.dest}
+                    onPlaceSelect={(place) => setEditingTrip({ ...editingTrip, dest: place.address || place.name })}
+                    className="w-full"
                   />
                 </div>
               </div>

@@ -2,17 +2,35 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Car, MapPin, CheckCircle2, QrCode, ArrowRight } from 'lucide-react';
+import { Car, MapPin, CheckCircle2, QrCode, ArrowRight, Sparkles } from 'lucide-react';
 import { VehicleCategory } from '@safar/types';
+import { PlaceAutocomplete, PlaceResult } from '../../../components/ui/place-autocomplete';
+import { StarFlourish } from '../../../components/ui/botanical-ornaments';
 
 export default function GuestBookPage() {
   const router = useRouter();
-  const [pickup, setPickup] = useState('The Grand Hotel');
-  const [destination, setDestination] = useState('The Celebration Venue');
+  const [pickup, setPickup] = useState('The Grand Hotel, Ahmedabad');
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destination, setDestination] = useState('The Celebration Venue, Ahmedabad');
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [category, setCategory] = useState<VehicleCategory>(VehicleCategory.SEDAN);
   const [passengers, setPassengers] = useState(2);
   const [time, setTime] = useState('12:30 PM');
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
+
+  const handlePickupSelect = (place: PlaceResult) => {
+    setPickup(place.address || place.name);
+    if (place.latitude && place.longitude) {
+      setPickupCoords({ lat: place.latitude, lng: place.longitude });
+    }
+  };
+
+  const handleDestinationSelect = (place: PlaceResult) => {
+    setDestination(place.address || place.name);
+    if (place.latitude && place.longitude) {
+      setDestinationCoords({ lat: place.latitude, lng: place.longitude });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,48 +54,49 @@ export default function GuestBookPage() {
         </div>
 
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-safar-700">
+          <span className="text-xs font-semibold uppercase tracking-wider text-terracotta-700">
             Booking Confirmed
           </span>
-          <h1 className="text-xl font-bold text-charcoal-900 mt-1">
+          <h1 className="text-xl sm:text-2xl font-serif font-bold text-charcoal-900 mt-1">
             Your Ride is Reserved!
           </h1>
-          <p className="text-xs text-charcoal-500 mt-0.5">
-            A vehicle has been scheduled for your departure at {confirmedBooking.time}.
+          <p className="text-xs text-charcoal-500 mt-0.5 font-sans">
+            A chauffeur has been scheduled for your departure at {confirmedBooking.time}.
           </p>
         </div>
 
         {/* Boarding Pass Box */}
-        <div className="p-6 rounded-2xl bg-white border border-charcoal-200/90 shadow-sm space-y-4 text-center">
-          <div className="p-4 rounded-xl bg-warm-100 border border-charcoal-200">
-            <span className="text-[11px] uppercase font-bold tracking-wider text-charcoal-500">
-              Boarding Verification Code
+        <div className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-sm space-y-4 text-center">
+          <div className="p-4 rounded-2xl bg-warm-100 border border-[#E8E2D9]">
+            <span className="text-[11px] uppercase font-bold tracking-wider text-charcoal-500 font-sans">
+              Boarding Verification PIN
             </span>
-            <div className="text-4xl font-black font-mono tracking-widest text-safar-700 mt-1">
+            <div className="text-4xl font-bold font-mono tracking-widest text-charcoal-950 mt-1">
               {confirmedBooking.boardingCode}
             </div>
-            <p className="text-[11px] text-charcoal-400 mt-1">
-              Provide this code to your driver upon pickup.
+            <p className="text-[11px] text-charcoal-500 mt-1 font-sans">
+              Provide this 4-digit PIN to your chauffeur upon pickup.
             </p>
           </div>
 
-          <div className="p-3 bg-white border border-charcoal-200 rounded-xl inline-block shadow-inner">
-            <div className="w-32 h-32 bg-charcoal-900 p-2 rounded-lg flex items-center justify-center text-white">
+          <div className="p-3 bg-white border border-[#E8E2D9] rounded-2xl inline-block shadow-inner">
+            <div className="w-32 h-32 bg-charcoal-900 p-2 rounded-xl flex items-center justify-center text-white">
               <QrCode className="w-24 h-24 text-white" />
             </div>
           </div>
 
-          <div className="pt-2 text-xs text-charcoal-600 text-left space-y-1 border-t border-charcoal-100">
-            <div><strong>Route:</strong> {confirmedBooking.pickup} &rarr; {confirmedBooking.destination}</div>
-            <div><strong>Vehicle:</strong> {confirmedBooking.category} &bull; {confirmedBooking.passengers} Passengers</div>
+          <div className="pt-2 text-xs text-charcoal-600 text-left space-y-1.5 border-t border-warm-200 font-sans">
+            <div className="line-clamp-1"><strong>Pick-up:</strong> {confirmedBooking.pickup}</div>
+            <div className="line-clamp-1"><strong>Destination:</strong> {confirmedBooking.destination}</div>
+            <div><strong>Vehicle:</strong> {confirmedBooking.category} &bull; {confirmedBooking.passengers} Guests</div>
           </div>
         </div>
 
         <button
           onClick={() => router.push('/guest')}
-          className="w-full py-3 rounded-xl bg-charcoal-900 hover:bg-charcoal-800 text-white font-bold text-xs transition-colors"
+          className="w-full py-3.5 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.985]"
         >
-          Return to Guest Home
+          Return to Guest Portal
         </button>
       </div>
     );
@@ -86,68 +105,63 @@ export default function GuestBookPage() {
   return (
     <div className="py-4 max-w-md mx-auto space-y-5">
       <div>
-        <span className="text-xs font-semibold uppercase tracking-wider text-safar-700">
-          Shuttle Reservation
-        </span>
-        <h1 className="text-xl sm:text-2xl font-bold text-charcoal-900 tracking-tight">
+        <div className="flex items-center gap-1.5 mb-1">
+          <StarFlourish className="w-3 h-3 text-gold-600" />
+          <span className="text-xs font-bold uppercase tracking-wider text-terracotta-700 font-sans">
+            Ceremonial Shuttle Reservation
+          </span>
+        </div>
+        <h1 className="text-2xl font-serif font-bold text-charcoal-900 tracking-tight">
           Book Event Ride
         </h1>
-        <p className="text-xs text-charcoal-500 mt-0.5">
-          Reserve seats between official hotel hubs and wedding celebration venues.
+        <p className="text-xs text-charcoal-500 mt-0.5 font-sans">
+          Reserve seats with verified wedding chauffeurs and real-time GPS dispatch.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl border border-charcoal-200/90 shadow-sm space-y-4">
+      <form onSubmit={handleSubmit} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E8E2D9] shadow-sm space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+          <label className="block text-xs font-bold text-charcoal-700 uppercase tracking-wider mb-1.5 font-sans">
             Pickup Location
           </label>
-          <select
-            value={pickup}
-            onChange={(e) => setPickup(e.target.value)}
-            className="w-full p-2.5 rounded-xl border border-charcoal-200 text-xs bg-white font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
-          >
-            <option>The Grand Hotel</option>
-            <option>Ahmedabad Airport (AMD)</option>
-            <option>The Celebration Venue</option>
-            <option>The Heritage Palace</option>
-          </select>
+          <PlaceAutocomplete
+            placeholder="Search hotel, airport, or address..."
+            defaultValue={pickup}
+            onPlaceSelect={handlePickupSelect}
+            className="w-full"
+          />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+          <label className="block text-xs font-bold text-charcoal-700 uppercase tracking-wider mb-1.5 font-sans">
             Destination Venue
           </label>
-          <select
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="w-full p-2.5 rounded-xl border border-charcoal-200 text-xs bg-white font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
-          >
-            <option>The Celebration Venue</option>
-            <option>The Grand Hotel</option>
-            <option>The Heritage Palace</option>
-            <option>Ahmedabad Airport (AMD)</option>
-          </select>
+          <PlaceAutocomplete
+            placeholder="Search banquet lawn, resort, or palace..."
+            defaultValue={destination}
+            onPlaceSelect={handleDestinationSelect}
+            className="w-full"
+          />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+          <label className="block text-xs font-bold text-charcoal-700 uppercase tracking-wider mb-1.5 font-sans">
             Select Ride Type
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 font-sans">
             {[
-              { cat: VehicleCategory.SEDAN, label: 'Sedan', seats: '4 seats' },
-              { cat: VehicleCategory.SUV, label: 'SUV', seats: '6 seats' },
+              { cat: VehicleCategory.SEDAN, label: 'Executive Sedan', seats: '4 seats' },
+              { cat: VehicleCategory.SUV, label: 'Luxury SUV', seats: '6 seats' },
               { cat: VehicleCategory.TEMPO_TRAVELLER, label: 'Traveller', seats: '16 seats' },
             ].map((item) => (
               <button
                 key={item.cat}
                 type="button"
                 onClick={() => setCategory(item.cat)}
-                className={`p-2.5 rounded-xl border text-center transition-all ${
+                className={`p-2.5 rounded-2xl border text-center transition-all ${
                   category === item.cat
-                    ? 'border-safar-600 bg-safar-50 text-safar-900 font-bold shadow-xs'
-                    : 'border-charcoal-200 bg-white text-charcoal-600 hover:border-charcoal-300'
+                    ? 'border-terracotta-600 bg-terracotta-50 text-terracotta-900 font-bold shadow-xs'
+                    : 'border-[#E8E2D9] bg-white text-charcoal-600 hover:border-warm-300'
                 }`}
               >
                 <div className="text-xs">{item.label}</div>
@@ -157,37 +171,37 @@ export default function GuestBookPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 font-sans">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+            <label className="block text-xs font-bold text-charcoal-700 uppercase tracking-wider mb-1">
               Departure Time
             </label>
             <input
               type="text"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
+              className="w-full p-2.5 rounded-xl border border-[#E8E2D9] text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
               placeholder="e.g. 12:30 PM"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-              Passenger Count
+            <label className="block text-xs font-bold text-charcoal-700 uppercase tracking-wider mb-1">
+              Guest Count
             </label>
             <input
               type="number"
               min="1"
-              max="12"
+              max="16"
               value={passengers}
               onChange={(e) => setPassengers(Number(e.target.value))}
-              className="w-full p-2.5 rounded-xl border border-charcoal-200 text-xs font-medium focus:ring-2 focus:ring-safar-500 focus:outline-none"
+              className="w-full p-2.5 rounded-xl border border-[#E8E2D9] text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
             />
           </div>
         </div>
 
         <button
           type="submit"
-          className="w-full py-3 rounded-xl bg-safar-600 hover:bg-safar-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
+          className="w-full py-3.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.985]"
         >
           Confirm Reservation <ArrowRight className="w-4 h-4" />
         </button>
@@ -195,3 +209,4 @@ export default function GuestBookPage() {
     </div>
   );
 }
+

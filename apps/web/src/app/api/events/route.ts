@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/db';
 import { getAuthenticatedHost } from '../../../lib/auth-server';
+import { generateUniqueEventAccessCodes } from '../../../lib/access-code';
 import { EventStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +80,8 @@ export async function GET(req: NextRequest) {
         expectedGuestCount: ev.expectedGuestCount,
         guestCount,
         joinCode: ev.joinCode,
+        driverAccessCode: ev.driverAccessCode || `DRV${ev.joinCode.slice(-3)}`,
+        guestAccessCode: ev.guestAccessCode || ev.joinCode,
         bannerUrl: ev.bannerUrl,
         description: ev.description,
         status: ev.status,
@@ -164,13 +167,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate unique join code
-    let joinCode = generateJoinCode();
-    for (let attempts = 0; attempts < 5; attempts++) {
-      const existing = await prisma.event.findUnique({ where: { joinCode } });
-      if (!existing) break;
-      joinCode = generateJoinCode();
-    }
+    // Generate unique driver and guest access codes
+    const { driverAccessCode, guestAccessCode } = await generateUniqueEventAccessCodes();
+    const joinCode = guestAccessCode; // Backward compatibility with joinCode
 
     const createdEvent = await prisma.$transaction(async (tx) => {
       const newEvent = await tx.event.create({
@@ -193,6 +192,8 @@ export async function POST(req: NextRequest) {
           bannerUrl: bannerUrl?.trim() || null,
           parentEventId: parentEventId || null,
           joinCode,
+          driverAccessCode,
+          guestAccessCode,
           status: EventStatus.ACTIVE,
         },
       });

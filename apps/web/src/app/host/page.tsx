@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { KpiCards, HostKpiStats } from '../../components/host/kpi-cards';
 import { UpcomingTripsTable } from '../../components/host/upcoming-trips-table';
 import { LiveFleetMapCard } from '../../components/host/live-fleet-map-card';
+import { AccessRequestsPanel } from '../../components/host/access-requests-panel';
 import {
   CalendarPlus,
   Plus,
@@ -137,9 +138,9 @@ export default function HostDashboardPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-7 animate-in fade-in duration-300">
+    <div className="max-w-7xl mx-auto space-y-7 animate-in fade-in duration-300 min-w-0">
       {/* Top Banner: Printed Editorial Invitation Banner */}
-      <div className="p-6 md:p-8 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="p-6 md:p-8 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 relative overflow-hidden">
         {/* Subtle Decorative Botanical Flourish Background Accent */}
         <div className="absolute right-4 -bottom-6 pointer-events-none opacity-20">
           <OliveBranch className="w-36 h-36 text-sage-600" />
@@ -308,8 +309,11 @@ export default function HostDashboardPage() {
         )}
       </div>
 
+      {/* Real-Time Access Requests Management */}
+      <AccessRequestsPanel />
+
       {/* Grid: Upcoming Trips & Fleet Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
         <div className="lg:col-span-2">
           <UpcomingTripsTable
             trips={trips.map((t) => ({

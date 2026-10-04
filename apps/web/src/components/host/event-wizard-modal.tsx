@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
 import { SafarButton } from '../ui/safar-design-system';
+import { PlaceAutocomplete, PlaceResult } from '../ui/place-autocomplete';
 
 interface EventWizardModalProps {
   isOpen: boolean;
@@ -414,7 +415,7 @@ export function EventWizardModal({
                 </div>
               </div>
 
-              {/* Venue & Complete Address */}
+              {/* Venue Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">
@@ -434,49 +435,6 @@ export function EventWizardModal({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Complete Venue Address (Google Places)
-                  </label>
-                  <div className="relative">
-                    <MapPin className="w-4 h-4 text-charcoal-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      value={venueAddress}
-                      onChange={(e) => setVenueAddress(e.target.value)}
-                      placeholder="e.g. SG Highway, Bodakdev, Ahmedabad"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Coordinates & Expected Guests */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Google Maps Latitude
-                  </label>
-                  <input
-                    type="text"
-                    value={venueLatitude}
-                    onChange={(e) => setVenueLatitude(e.target.value)}
-                    placeholder="23.0489"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Google Maps Longitude
-                  </label>
-                  <input
-                    type="text"
-                    value={venueLongitude}
-                    onChange={(e) => setVenueLongitude(e.target.value)}
-                    placeholder="72.5085"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
                     Expected Guest Count
                   </label>
                   <div className="relative">
@@ -491,6 +449,35 @@ export function EventWizardModal({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Venue Location Search (Google Places) */}
+              <div>
+                <PlaceAutocomplete
+                  label="Venue Address (Google Places Search) *"
+                  placeholder="Search venue, hotel, banquet hall…"
+                  defaultValue={venueAddress}
+                  icon={<MapPin className="w-4 h-4" />}
+                  onPlaceSelect={(place: PlaceResult) => {
+                    setVenueAddress(place.address);
+                    setVenueLatitude(String(place.latitude));
+                    setVenueLongitude(String(place.longitude));
+                    if (!venueName.trim() || venueName === 'Grand Bhagwati') {
+                      setVenueName(place.name);
+                    }
+                  }}
+                  onClear={() => {
+                    setVenueAddress('');
+                    setVenueLatitude('');
+                    setVenueLongitude('');
+                  }}
+                />
+                {venueLatitude && venueLongitude && (
+                  <p className="text-[10px] text-emerald-700 font-medium mt-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Coordinates saved: {parseFloat(venueLatitude).toFixed(4)}° N, {parseFloat(venueLongitude).toFixed(4)}° E
+                  </p>
+                )}
               </div>
 
               {/* Description & Cover Image */}

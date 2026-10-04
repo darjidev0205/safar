@@ -50,13 +50,22 @@ export function EditorialNavbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
 
-  // Lock body scroll when mobile menu is open
+  // Lock body scroll and listen to Escape key when mobile menu is open
   useEffect(() => {
     if (mobileMenuOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setMobileMenuOpen(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
       return () => {
         document.body.style.overflow = originalStyle;
+        window.removeEventListener('keydown', handleKeyDown);
       };
     }
   }, [mobileMenuOpen]);
@@ -73,13 +82,16 @@ export function EditorialNavbar({
           setIsFloating(currentY > 20);
 
           // Update active section
-          const sections = ['functions', 'journey', 'families', 'fleet'];
+          const sections = ['events', 'functions', 'how-it-works', 'journey', 'hosts', 'families', 'guests', 'fleet'];
           for (const sectionId of sections) {
             const el = document.getElementById(sectionId);
             if (el) {
               const rect = el.getBoundingClientRect();
-              if (rect.top <= 240 && rect.bottom >= 240) {
-                setActiveSection(sectionId);
+              if (rect.top <= 260 && rect.bottom >= 200) {
+                if (sectionId === 'functions' || sectionId === 'events') setActiveSection('events');
+                else if (sectionId === 'journey' || sectionId === 'how-it-works') setActiveSection('how-it-works');
+                else if (sectionId === 'families' || sectionId === 'hosts') setActiveSection('hosts');
+                else if (sectionId === 'fleet' || sectionId === 'guests') setActiveSection('guests');
                 break;
               }
             }
@@ -101,39 +113,61 @@ export function EditorialNavbar({
     {
       name: 'Events',
       subtitle: 'The Functions: Sangeet, Mehndi, Haldi & Pheras',
-      href: '#functions',
-      id: 'functions',
+      href: '#events',
+      id: 'events',
       icon: Calendar,
     },
     {
       name: 'How It Works',
       subtitle: 'The 5-Stage Ceremonial Journey',
-      href: '#journey',
-      id: 'journey',
+      href: '#how-it-works',
+      id: 'how-it-works',
       icon: Compass,
     },
     {
       name: 'For Hosts',
       subtitle: 'Host Dashboard & Fleet Management',
-      href: '#families',
-      id: 'families',
+      href: '#hosts',
+      id: 'hosts',
       icon: Users,
     },
     {
       name: 'For Guests',
       subtitle: 'Guest Manifest & Arrival Convoys',
-      href: '#fleet',
-      id: 'fleet',
+      href: '#guests',
+      id: 'guests',
       icon: Car,
     },
   ];
 
-  const handleMobileNavClick = (href: string) => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
     setMobileMenuOpen(false);
     const target = document.querySelector(href);
     if (target) {
-      target.scrollIntoView({ behavior: 'smooth' });
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.location.hash = href;
     }
+  };
+
+  const handleStartPlanning = () => {
+    setMobileMenuOpen(false);
+    if (authStatus === 'AUTHENTICATED') {
+      window.location.href = getRoleDashboard(role);
+    } else {
+      onOpenAuth(UserRole.EVENT_ORGANIZER);
+    }
+  };
+
+  const handleJoinClick = () => {
+    setMobileMenuOpen(false);
+    onOpenJoinModal();
+  };
+
+  const handleLoginClick = () => {
+    setMobileMenuOpen(false);
+    onOpenAuth(UserRole.EVENT_ORGANIZER);
   };
 
   return (
@@ -183,7 +217,8 @@ export function EditorialNavbar({
                 <a
                   key={item.id}
                   href={item.href}
-                  className={`relative px-3 lg:px-3.5 py-1.5 rounded-full text-xs font-medium tracking-[0.14em] uppercase transition-all duration-300 ${
+                  onClick={(e) => handleNavClick(e, item.href)}
+                  className={`relative px-3 lg:px-3.5 py-1.5 rounded-full text-xs font-medium tracking-[0.14em] uppercase transition-all duration-300 cursor-pointer ${
                     isActive
                       ? 'text-terracotta-700 font-semibold bg-white/70 shadow-2xs'
                       : 'text-charcoal-700 hover:text-terracotta-700 hover:bg-white/40'
@@ -202,8 +237,8 @@ export function EditorialNavbar({
           <div className="hidden md:flex items-center gap-2.5">
             {/* Join Event Button */}
             <button
-              onClick={onOpenJoinModal}
-              className={`px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 flex items-center gap-1.5 ${
+              onClick={handleJoinClick}
+              className={`px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                 isFloating
                   ? 'bg-white/80 hover:bg-white text-charcoal-800 border border-white/80 shadow-2xs active:scale-95'
                   : 'bg-white/60 hover:bg-white text-charcoal-800 border border-charcoal-300/60 shadow-2xs active:scale-95'
@@ -226,7 +261,7 @@ export function EditorialNavbar({
                 </Link>
                 <button
                   onClick={onLogout}
-                  className="p-2 rounded-full text-charcoal-500 hover:text-charcoal-900 hover:bg-white/60 transition-colors"
+                  className="p-2 rounded-full text-charcoal-500 hover:text-charcoal-900 hover:bg-white/60 transition-colors cursor-pointer"
                   title="Sign Out"
                   aria-label="Sign Out"
                 >
@@ -236,14 +271,14 @@ export function EditorialNavbar({
             ) : (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => onOpenAuth(UserRole.EVENT_ORGANIZER)}
-                  className="px-2.5 py-1.5 text-xs font-medium uppercase tracking-wider text-charcoal-600 hover:text-charcoal-900 transition-colors"
+                  onClick={handleLoginClick}
+                  className="px-2.5 py-1.5 text-xs font-medium uppercase tracking-wider text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer"
                 >
                   Login
                 </button>
                 <button
-                  onClick={() => onOpenAuth(UserRole.EVENT_ORGANIZER)}
-                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white text-xs font-bold tracking-wider uppercase shadow-xs flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:scale-95"
+                  onClick={handleStartPlanning}
+                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white text-xs font-bold tracking-wider uppercase shadow-xs flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                 >
                   <span>Start Planning</span>
                   <ArrowRight className="w-3.5 h-3.5 text-warm-200" />
@@ -256,7 +291,7 @@ export function EditorialNavbar({
           <div className="flex md:hidden items-center">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="min-w-[44px] min-h-[44px] p-2.5 rounded-full text-charcoal-800 hover:bg-white/60 active:bg-white/80 transition-colors flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500"
+              className="min-w-[44px] min-h-[44px] p-2.5 rounded-full text-charcoal-800 hover:bg-white/60 active:bg-white/80 transition-colors flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 cursor-pointer"
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
             >
@@ -307,7 +342,7 @@ export function EditorialNavbar({
 
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="min-w-[44px] min-h-[44px] p-2 rounded-full text-charcoal-700 hover:text-charcoal-950 hover:bg-warm-100 transition-colors flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-full text-charcoal-700 hover:text-charcoal-950 hover:bg-warm-100 transition-colors flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 cursor-pointer"
               aria-label="Close navigation menu"
             >
               <X className="w-6 h-6 text-charcoal-800" />
@@ -318,7 +353,6 @@ export function EditorialNavbar({
           <div className="relative z-10 px-6 sm:px-8 py-8 sm:py-10 flex-1 flex flex-col justify-center space-y-6">
             <nav aria-label="Mobile Navigation Links" className="space-y-4 sm:space-y-5">
               {navLinks.map((item, idx) => {
-                const Icon = item.icon;
                 return (
                   <div
                     key={item.id}
@@ -327,8 +361,8 @@ export function EditorialNavbar({
                   >
                     <a
                       href={item.href}
-                      onClick={() => handleMobileNavClick(item.href)}
-                      className="group flex items-baseline justify-between py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 rounded-lg"
+                      onClick={(e) => handleNavClick(e, item.href)}
+                      className="group flex items-baseline justify-between py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 rounded-lg cursor-pointer"
                     >
                       <div>
                         <span className="font-serif text-2xl sm:text-3xl tracking-[0.12em] font-medium text-charcoal-900 group-hover:text-terracotta-600 transition-colors uppercase block">
@@ -347,11 +381,8 @@ export function EditorialNavbar({
               {/* Join Event code row */}
               <div className="border-b border-[#E5DACB]/40 pb-3">
                 <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenJoinModal();
-                  }}
-                  className="w-full text-left group flex items-baseline justify-between py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 rounded-lg"
+                  onClick={handleJoinClick}
+                  className="w-full text-left group flex items-baseline justify-between py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 rounded-lg cursor-pointer"
                 >
                   <div>
                     <span className="font-serif text-2xl sm:text-3xl tracking-[0.12em] font-medium text-charcoal-900 group-hover:text-terracotta-600 transition-colors uppercase block">
@@ -381,7 +412,7 @@ export function EditorialNavbar({
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full py-3.5 rounded-full bg-charcoal-900 text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-transform"
                 >
-                  <span>Open Host Dashboard</span>
+                  <span>Open Dashboard</span>
                   <ArrowRight className="w-4 h-4 text-warm-300" />
                 </Link>
                 <button
@@ -389,7 +420,7 @@ export function EditorialNavbar({
                     setMobileMenuOpen(false);
                     onLogout();
                   }}
-                  className="w-full py-2.5 text-center text-xs font-medium tracking-wider text-charcoal-500 hover:text-charcoal-800 transition-colors"
+                  className="w-full py-2.5 text-center text-xs font-medium tracking-wider text-charcoal-500 hover:text-charcoal-800 transition-colors cursor-pointer"
                 >
                   Sign Out of Account
                 </button>
@@ -397,21 +428,15 @@ export function EditorialNavbar({
             ) : (
               <div className="space-y-3">
                 <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth(UserRole.EVENT_ORGANIZER);
-                  }}
-                  className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-transform"
+                  onClick={handleStartPlanning}
+                  className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-transform cursor-pointer"
                 >
                   <span>Start Planning</span>
                   <ArrowRight className="w-4 h-4 text-warm-200" />
                 </button>
                 <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth(UserRole.EVENT_ORGANIZER);
-                  }}
-                  className="w-full py-2 text-center text-xs font-medium tracking-wider uppercase text-charcoal-600 hover:text-charcoal-900 transition-colors"
+                  onClick={handleLoginClick}
+                  className="w-full py-2 text-center text-xs font-medium tracking-wider uppercase text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer"
                 >
                   Login to Existing Account
                 </button>

@@ -67,6 +67,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       success: true,
       event: {
         ...fullEvent,
+        driverAccessCode: fullEvent.driverAccessCode || `DRV${fullEvent.joinCode.slice(-3)}`,
+        guestAccessCode: fullEvent.guestAccessCode || fullEvent.joinCode,
         totalGuests,
         assignedTrips,
         assignedVehiclesCount,

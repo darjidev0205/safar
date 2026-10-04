@@ -464,20 +464,21 @@ export function HorizontalCardScroller({
   gridCols = 'md:grid-cols-2 lg:grid-cols-3',
 }: HorizontalCardScrollerProps) {
   return (
-    <div className={`relative w-full ${className}`}>
+    <div className={`relative w-full min-w-0 overflow-hidden ${className}`}>
       {/* 
-        Mobile: native touch momentum swipe, scroll-snap-type: x mandatory, hidden scrollbar, 
-        ~10-18% of next card visible (w-[82vw] on mobile, sm:w-[340px]).
+        Mobile: native touch momentum swipe, scroll-snap-type: x mandatory, hidden scrollbar.
+        The outer div has overflow-hidden to contain the -mx-4 bleed to within this component.
+        The inner div does the actual scrolling with overflow-x: auto.
         Desktop (md+): transforms into standard responsive grid.
       */}
       <div
-        className={`flex md:grid overflow-x-auto md:overflow-visible scrollbar-none snap-x snap-mandatory gap-4 sm:gap-5 md:gap-6 -mx-4 px-4 pb-4 pt-1 md:mx-0 md:px-0 md:pb-0 md:pt-0 ${gridCols}`}
+        className={`flex md:grid overflow-x-auto md:overflow-visible scrollbar-none snap-x snap-mandatory gap-4 sm:gap-5 md:gap-6 -mx-4 px-4 pb-4 pt-1 md:mx-0 md:px-0 md:pb-0 md:pt-0 min-w-0 ${gridCols}`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {React.Children.map(children, (child) => {
           if (!React.isValidElement(child)) return child;
           return (
-            <div className="shrink-0 snap-start w-[82vw] sm:w-[340px] md:w-auto h-full flex flex-col">
+            <div className="shrink-0 snap-start w-[82vw] sm:w-[340px] md:w-auto h-full flex flex-col min-w-0">
               {child}
             </div>
           );

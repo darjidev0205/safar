@@ -78,6 +78,12 @@ enum NotificationChannel {
   IN_APP
 }
 
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   firebaseUid  String   @unique
@@ -93,7 +99,8 @@ model User {
   eventMembers    EventMember[]
   drivers         Driver[]
   guests          Guest[]
-  createdEvents   Event[]         @relation("EventCreator")
+  createdEvents   Event[]              @relation("EventCreator")
+  accessRequests  EventAccessRequest[]
   auditLogs       AuditLog[]
   notifications   Notification[]
 
@@ -171,6 +178,8 @@ model Event {
   venueLongitude      Float?
   expectedGuestCount  Int         @default(0)
   joinCode            String      @unique
+  driverAccessCode    String?     @unique
+  guestAccessCode     String?     @unique
   bannerUrl           String?
   description         String?
   status              EventStatus @default(ACTIVE)
@@ -184,6 +193,7 @@ model Event {
   subEvents             Event[]                     @relation("EventHierarchy")
   eventMembers          EventMember[]
   eventCodes            EventCode[]
+  accessRequests        EventAccessRequest[]
   functions             Function[]
   places                Place[]
   guests                Guest[]
@@ -196,6 +206,31 @@ model Event {
   @@index([accountId])
   @@index([parentEventId])
   @@map("events")
+}
+
+model EventAccessRequest {
+  id          String              @id @default(auto()) @map("_id") @db.ObjectId
+  eventId     String              @db.ObjectId
+  userId      String              @db.ObjectId
+  role        Role                // DRIVER or GUEST
+  status      AccessRequestStatus @default(PENDING)
+  requestedAt DateTime            @default(now())
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  event       Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId, role])
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@index([eventId, status])
+  @@index([userId, status])
+  @@map("event_access_requests")
 }
 
 model EventMember {
@@ -487,6 +522,14 @@ model Trip {
   actualStartTime      DateTime?
   actualEndTime        DateTime?
   status               TripStatus @default(SCHEDULED)
+  plannedDistanceKm    Float?
+  actualDistanceKm     Float?     @default(0)
+  remainingDistanceKm  Float?
+  currentLat           Float?
+  currentLng           Float?
+  currentSpeed         Float?
+  currentHeading       Float?
+  lastPingAt           DateTime?
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
 
@@ -504,6 +547,8 @@ model Trip {
   @@index([driverId])
   @@index([vehicleId])
   @@index([status])
+  @@index([driverId, status])
+  @@index([eventId, status])
   @@map("trips")
 }
 
@@ -550,6 +595,8 @@ model Booking {
   @@index([eventId])
   @@index([tripId])
   @@index([guestId])
+  @@index([guestId, status])
+  @@index([eventId, status])
   @@index([boardingCode])
   @@map("bookings")
 }
@@ -586,6 +633,7 @@ model LocationPing {
   @@index([tripId])
   @@index([driverId])
   @@index([timestamp])
+  @@index([tripId, timestamp])
   @@map("location_pings")
 }
 

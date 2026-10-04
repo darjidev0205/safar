@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { SAFAR_FIREBASE_CONFIG } from '@safar/config';
 
 const app = !getApps().length ? initializeApp(SAFAR_FIREBASE_CONFIG) : getApp();
@@ -17,4 +17,8 @@ export {
   getDoc,
   setDoc,
   updateDoc,
+  onSnapshot,
+  collection,
+  query,
+  where,
 };

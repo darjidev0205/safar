@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Car,
@@ -16,36 +16,44 @@ import {
   MapPin,
   CheckSquare,
   Compass,
+  WifiOff,
+  LocateFixed,
+  Sparkles,
+  ChevronRight,
+  ClipboardList,
 } from 'lucide-react';
 import { TripStatus } from '@safar/types';
 import { StatusBadge } from '../../components/ui/status-badge';
+import { DriverGpsTracker, TrackingState } from '../../lib/tracking-engine';
+import { DriverEventAccessCard } from '../../components/driver/driver-event-access-card';
 
 export default function DriverDashboardPage() {
   const [isOnDuty, setIsOnDuty] = useState(true);
   const [tripState, setTripState] = useState<TripStatus>(TripStatus.ASSIGNED);
-  const [isGpsActive, setIsGpsActive] = useState(true);
-  const [lastPingTime, setLastPingTime] = useState<string>('Just now');
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [enteredCode, setEnteredCode] = useState('');
   const [codeError, setCodeError] = useState(false);
   const [showSOSModal, setShowSOSModal] = useState(false);
 
-  // Simulated GPS Ping Interval
-  useEffect(() => {
-    if (!isGpsActive) return;
-    const interval = setInterval(() => {
-      setLastPingTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isGpsActive]);
-
-  const assignedVehicle = {
-    model: 'Toyota Innova Crysta',
-    plate: 'KA 01 AB 1234',
-    category: 'SUV',
-    capacity: 6,
-    fuel: '85%',
-  };
+  // Real GPS Telemetry state from DriverGpsTracker
+  const trackerRef = useRef<DriverGpsTracker | null>(null);
+  const [trackingState, setTrackingState] = useState<TrackingState>({
+    isTracking: false,
+    permissionStatus: 'prompt',
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    currentPoint: null,
+    previousValidPoint: null,
+    actualDistanceKm: 0,
+    plannedDistanceKm: 23.5,
+    remainingDistanceKm: 23.5,
+    speedKmh: 0,
+    heading: null,
+    breadcrumbs: [],
+    queuedPingsCount: 0,
+    lastSyncedAt: null,
+    errorMessage: null,
+  });
 
   const nextTrip = {
     id: 'tr_101',
@@ -58,6 +66,37 @@ export default function DriverDashboardPage() {
     passengerNames: 'Aarav Patel + 3 Guests',
     vehicleType: 'SUV (Innova Crysta)',
     boardingCodeRequired: '4827',
+    destinationCoords: { lat: 23.0225, lng: 72.5714 },
+    plannedDistanceKm: 23.5,
+  };
+
+  // Initialize tracker instance
+  useEffect(() => {
+    const tracker = new DriverGpsTracker({
+      tripId: nextTrip.id,
+      driverId: 'drv_101',
+      plannedDistanceKm: nextTrip.plannedDistanceKm,
+      destinationCoords: nextTrip.destinationCoords,
+      initialActualDistanceKm: 0,
+    });
+    trackerRef.current = tracker;
+
+    const unsubscribe = tracker.subscribe((st) => {
+      setTrackingState(st);
+    });
+
+    return () => {
+      tracker.stopTracking();
+      unsubscribe();
+    };
+  }, []);
+
+  const assignedVehicle = {
+    model: 'Toyota Innova Crysta',
+    plate: 'KA 01 AB 1234',
+    category: 'Premium SUV',
+    capacity: 6,
+    fuel: '85%',
   };
 
   const todaysTrips = [
@@ -81,10 +120,18 @@ export default function DriverDashboardPage() {
     },
   ];
 
+  const handleStartTripWithGps = async () => {
+    setShowPermissionModal(false);
+    if (trackerRef.current) {
+      await trackerRef.current.startTracking();
+    }
+    setTripState(TripStatus.EN_ROUTE_TO_PICKUP);
+  };
+
   const handleNextStep = () => {
     switch (tripState) {
       case TripStatus.ASSIGNED:
-        setTripState(TripStatus.EN_ROUTE_TO_PICKUP);
+        setShowPermissionModal(true);
         break;
       case TripStatus.EN_ROUTE_TO_PICKUP:
         setTripState(TripStatus.ARRIVED);
@@ -94,9 +141,15 @@ export default function DriverDashboardPage() {
         break;
       case TripStatus.BOARDING:
         setTripState(TripStatus.IN_TRANSIT);
+        if (trackerRef.current && !trackingState.isTracking) {
+          trackerRef.current.startTracking();
+        }
         break;
       case TripStatus.IN_TRANSIT:
         setTripState(TripStatus.COMPLETED);
+        if (trackerRef.current) {
+          trackerRef.current.stopTracking();
+        }
         break;
       case TripStatus.COMPLETED:
         setTripState(TripStatus.ASSIGNED); // Reset for next scheduled trip
@@ -118,42 +171,70 @@ export default function DriverDashboardPage() {
   const getActionButtonLabel = () => {
     switch (tripState) {
       case TripStatus.ASSIGNED:
-        return 'Start Navigation (En Route)';
+        return 'START TRIP (ENABLE GPS TRACKING)';
       case TripStatus.EN_ROUTE_TO_PICKUP:
-        return 'Mark As Arrived At Pickup';
+        return 'MARK AS ARRIVED AT PICKUP';
       case TripStatus.ARRIVED:
-        return 'Verify Guest Boarding Code';
+        return 'VERIFY GUEST BOARDING CODE';
       case TripStatus.BOARDING:
-        return 'Start Trip (In Transit)';
+        return 'DEPART PICKUP (IN TRANSIT)';
       case TripStatus.IN_TRANSIT:
-        return 'Complete Trip & Mark Destination Arrived';
+        return 'COMPLETE TRIP & STOP GPS';
       case TripStatus.COMPLETED:
-        return 'Trip Completed — Next Assignment';
+        return 'TRIP COMPLETED — NEXT ASSIGNMENT';
       default:
-        return 'Start Navigation';
+        return 'START NAVIGATION';
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Status & GPS Bar */}
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Offline Alert Banner */}
+      {!trackingState.isOnline && (
+        <div className="p-4 rounded-3xl bg-amber-50/90 border border-amber-300 text-amber-900 flex items-center justify-between text-xs font-sans shadow-xs animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <WifiOff className="w-4 h-4 text-amber-700 shrink-0" />
+            <span className="font-semibold">
+              Connection lost &mdash; tracking telemetry will sync automatically upon reconnection.
+            </span>
+          </div>
+          {trackingState.queuedPingsCount > 0 && (
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
+              {trackingState.queuedPingsCount} pings queued
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Permission Error Banner */}
+      {trackingState.errorMessage && (
+        <div className="p-4 rounded-3xl bg-rose-50 border border-rose-300 text-rose-900 flex items-center gap-2.5 text-xs font-sans shadow-xs">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{trackingState.errorMessage}</span>
+        </div>
+      )}
+
+      {/* Driver Event Access Control: Join Event & My Events */}
+      <DriverEventAccessCard />
+
+      {/* Top Status & Real GPS Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Duty Status Card */}
-        <div className="p-4 rounded-2xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)] flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 font-sans">
+        <div className="p-5 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.04)] flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-charcoal-400 font-sans block">
               Shift Status
             </span>
-            <div className="text-base font-bold text-charcoal-900 font-serif">
-              {isOnDuty ? 'Available On Duty' : 'Off Duty (Shift Paused)'}
+            <div className="text-base sm:text-lg font-bold text-charcoal-900 font-serif">
+              {isOnDuty ? 'Available On Duty' : 'Off Duty (Paused)'}
             </div>
           </div>
           <button
             onClick={() => setIsOnDuty(!isOnDuty)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border flex items-center gap-1.5 active:scale-[0.985] ${
+            className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border flex items-center gap-2 active:scale-[0.98] ${
               isOnDuty
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-xs'
-                : 'bg-warm-100 border-warm-200 text-charcoal-600'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
+                : 'bg-warm-100 border-[#E8E2D9] text-charcoal-600 hover:bg-warm-200'
             }`}
           >
             <span
@@ -165,139 +246,271 @@ export default function DriverDashboardPage() {
           </button>
         </div>
 
-        {/* Real-Time GPS Telemetry Card */}
-        <div className="p-4 rounded-2xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)] flex items-center justify-between">
-          <div className="space-y-0.5">
+        {/* Real-Time Device GPS Telemetry Card */}
+        <div className="p-5 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.04)] flex items-center justify-between">
+          <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-terracotta-600 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 font-sans">
-                Live GPS Telemetry
+              <Radio
+                className={`w-3.5 h-3.5 ${
+                  trackingState.isTracking
+                    ? 'text-emerald-600 animate-pulse'
+                    : 'text-charcoal-400'
+                }`}
+              />
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-charcoal-400 font-sans">
+                Device GPS Telemetry
               </span>
             </div>
-            <div className="text-xs font-mono font-semibold text-charcoal-700">
-              23.0338° N, 72.5256° E &bull; Ping: {lastPingTime}
+            <div className="text-xs font-mono font-semibold text-charcoal-700 truncate">
+              {trackingState.currentPoint ? (
+                <span>
+                  {trackingState.currentPoint.latitude.toFixed(4)}&deg; N,{' '}
+                  {trackingState.currentPoint.longitude.toFixed(4)}&deg; E &bull; &plusmn;
+                  {Math.round(trackingState.currentPoint.accuracy)}m
+                </span>
+              ) : (
+                <span className="text-charcoal-400 italic">Standby &bull; GPS begins on start</span>
+              )}
             </div>
           </div>
-          <button
-            onClick={() => setIsGpsActive(!isGpsActive)}
-            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-colors active:scale-[0.985] ${
-              isGpsActive
-                ? 'bg-warm-100 text-charcoal-800 border border-warm-200'
-                : 'bg-warm-50 text-charcoal-500 border border-warm-200'
+          <span
+            className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shrink-0 ${
+              trackingState.isTracking
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-warm-100 text-charcoal-600 border-[#E8E2D9]'
             }`}
           >
-            {isGpsActive ? 'Broadcasting' : 'Paused'}
-          </button>
+            {trackingState.isTracking ? 'GPS Active' : 'Standby'}
+          </span>
         </div>
       </div>
 
-      {/* Assigned Vehicle Card */}
-      <div className="p-5 rounded-3xl bg-charcoal-900 text-white border border-[#E8E2D9]/10 shadow-[0_8px_30px_-4px_rgba(70,50,40,0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-warm-200">
-            <Car className="w-6 h-6" />
+      {/* Live Distance & Mileage Metrics Card */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.05)] space-y-4 font-sans">
+        <div className="flex items-center justify-between border-b border-warm-100 pb-3">
+          <div className="flex items-center gap-2">
+            <LocateFixed className="w-4 h-4 text-terracotta-600" />
+            <span className="text-xs font-bold uppercase tracking-[0.15em] text-charcoal-800">
+              Trip Distance &amp; Mileage Matrix
+            </span>
           </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-warm-400 font-sans">
+          {trackingState.isTracking && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              Live Haversine Telemetry
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="p-3 sm:p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 block mb-1">
+              Driven (Actual)
+            </span>
+            <span className="text-xl sm:text-2xl font-bold font-serif text-terracotta-700 block">
+              {trackingState.actualDistanceKm.toFixed(1)} km
+            </span>
+            <span className="text-[10px] text-charcoal-400 block mt-0.5">Verified GPS</span>
+          </div>
+
+          <div className="p-3 sm:p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 block mb-1">
+              Remaining
+            </span>
+            <span className="text-xl sm:text-2xl font-bold font-serif text-charcoal-900 block">
+              {trackingState.remainingDistanceKm.toFixed(1)} km
+            </span>
+            <span className="text-[10px] text-charcoal-400 block mt-0.5">To destination</span>
+          </div>
+
+          <div className="p-3 sm:p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 block mb-1">
+              Total Planned
+            </span>
+            <span className="text-xl sm:text-2xl font-bold font-serif text-charcoal-700 block">
+              {trackingState.plannedDistanceKm.toFixed(1)} km
+            </span>
+            <span className="text-[10px] text-charcoal-400 block mt-0.5">Route itinerary</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Assigned Vehicle Card (Luxury Deep Navy) */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-[#121826] text-white border border-white/10 shadow-[0_12px_36px_rgba(18,24,38,0.18)] flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-warm-200 shrink-0">
+            <Car className="w-6 h-6 text-warm-100" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-warm-400 font-sans block">
               Assigned Fleet Vehicle
             </span>
-            <div className="text-base font-bold font-serif">{assignedVehicle.model}</div>
-            <div className="text-xs text-warm-300 font-mono mt-0.5">
-              Plate: {assignedVehicle.plate} &bull; Capacity: {assignedVehicle.capacity} seats
+            <div className="text-lg sm:text-xl font-bold font-serif text-white truncate">
+              {assignedVehicle.model}
+            </div>
+            <div className="text-xs text-warm-300 font-sans mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>Plate: <strong className="text-white font-mono">{assignedVehicle.plate}</strong></span>
+              <span className="text-warm-500">&bull;</span>
+              <span>Capacity: {assignedVehicle.capacity} seats</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 self-stretch sm:self-auto shrink-0 flex-wrap sm:flex-nowrap">
+          <Link
+            href="/driver/navigation"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-md shadow-terracotta-600/20 active:scale-[0.98]"
+          >
+            <Navigation className="w-4 h-4" />
+            <span>Open Navigation Map</span>
+          </Link>
           <Link
             href="/driver/duty"
-            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors border border-white/15 active:scale-[0.985]"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-all border border-white/15 flex items-center justify-center gap-1.5 active:scale-[0.98]"
           >
-            Vehicle Checklist
+            <ClipboardList className="w-3.5 h-3.5 text-warm-300" />
+            <span>Vehicle Checklist</span>
           </Link>
         </div>
       </div>
 
       {/* Next Trip Execution Card */}
-      <div className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-700 font-sans">
+      <div className="p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-5">
+        {/* Header with structured 2-column layout */}
+        <div className="flex items-center justify-between border-b border-warm-100 pb-4">
+          <div className="space-y-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-terracotta-700 font-sans block">
               Authorized Assignment
             </span>
-            <h3 className="text-lg font-bold text-charcoal-900 font-serif">Next Trip Details</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-charcoal-900 font-serif">
+              Next Trip Details
+            </h3>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={tripState} size="sm" />
-            <span className="text-xs font-bold text-charcoal-900 font-mono bg-warm-100 px-2.5 py-1 rounded-lg border border-warm-200">
+            <span className="text-xs font-bold text-charcoal-900 font-mono bg-[#FDFBF7] px-3 py-1.5 rounded-xl border border-[#E8E2D9]">
               {nextTrip.pickupTime}
             </span>
           </div>
         </div>
 
-        {/* Route Progression Timeline */}
-        <div className="space-y-4 relative pl-7 before:absolute before:left-2.5 before:top-2.5 before:bottom-2.5 before:w-0.5 before:bg-warm-200">
-          <div className="relative">
-            <span className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-charcoal-900 ring-4 ring-white" />
-            <div className="text-xs font-bold text-charcoal-900">{nextTrip.pickup}</div>
-            <div className="text-[11px] text-charcoal-500 font-sans">{nextTrip.pickupCity}</div>
+        {/* Route Progression Timeline with perfectly centered markers */}
+        <div className="relative pl-8 space-y-6 before:absolute before:left-[11px] before:top-[12px] before:bottom-[12px] before:w-0.5 before:bg-[#E8E2D9]">
+          {/* Pickup Point */}
+          <div className="relative flex items-start gap-3">
+            <div className="absolute -left-8 top-0.5 w-6 h-6 rounded-full bg-white border-2 border-charcoal-900 flex items-center justify-center shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-charcoal-900" />
+            </div>
+            <div>
+              <div className="text-xs uppercase font-bold tracking-wider text-charcoal-400">
+                Pickup Location
+              </div>
+              <div className="text-sm font-bold text-charcoal-900 font-serif mt-0.5">
+                {nextTrip.pickup}
+              </div>
+              <div className="text-xs text-charcoal-500 font-sans mt-0.5">
+                {nextTrip.pickupCity}
+              </div>
+            </div>
           </div>
-          <div className="relative">
-            <span className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-terracotta-600 ring-4 ring-white" />
-            <div className="text-xs font-bold text-charcoal-900">{nextTrip.destination}</div>
-            <div className="text-[11px] text-charcoal-500 font-sans">{nextTrip.destinationCity}</div>
+
+          {/* Destination Point */}
+          <div className="relative flex items-start gap-3">
+            <div className="absolute -left-8 top-0.5 w-6 h-6 rounded-full bg-white border-2 border-terracotta-600 flex items-center justify-center shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-terracotta-600" />
+            </div>
+            <div>
+              <div className="text-xs uppercase font-bold tracking-wider text-terracotta-700">
+                Destination
+              </div>
+              <div className="text-sm font-bold text-charcoal-900 font-serif mt-0.5">
+                {nextTrip.destination}
+              </div>
+              <div className="text-xs text-charcoal-500 font-sans mt-0.5">
+                {nextTrip.destinationCity}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Passenger Manifest Row */}
-        <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] flex items-center justify-between text-xs font-sans">
-          <div className="flex items-center gap-2 text-charcoal-700 font-medium">
-            <Users className="w-4 h-4 text-terracotta-600" />
-            <span>{nextTrip.passengerNames} ({nextTrip.passengers} passengers)</span>
+        {/* Passenger Manifest Card (Balanced with Divider & Tap Action) */}
+        <div
+          onClick={() => setShowVerifyModal(true)}
+          className="p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] hover:border-terracotta-400/80 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-warm-100 border border-[#E8E2D9] flex items-center justify-center text-terracotta-700 shrink-0 group-hover:bg-terracotta-50 transition-colors">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-charcoal-900">
+                {nextTrip.passengerNames}
+              </div>
+              <div className="text-[11px] text-charcoal-500 font-sans mt-0.5">
+                {nextTrip.passengers} passengers reserved
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => setShowVerifyModal(true)}
-            className="text-xs font-bold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 transition-colors"
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Verify Boarding Code
-          </button>
+
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <div className="hidden sm:block w-px h-8 bg-[#E8E2D9]" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVerifyModal(true);
+              }}
+              className="px-3.5 py-1.5 rounded-full bg-white border border-[#E8E2D9] group-hover:border-terracotta-300 text-xs font-bold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1.5 shadow-2xs transition-colors"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-terracotta-600" />
+              <span>Verify Code</span>
+            </button>
+          </div>
         </div>
 
-        {/* Trip Stepper Action Button */}
-        <div className="space-y-2">
+        {/* Prominent Primary START TRIP CTA Button */}
+        <div className="space-y-2.5 pt-1">
           <button
             onClick={handleNextStep}
-            className="w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-wider text-white bg-terracotta-600 hover:bg-terracotta-700 shadow-md shadow-terracotta-600/20 active:scale-[0.985] transition-all flex items-center justify-center gap-2"
+            className="w-full min-h-[52px] sm:min-h-[56px] px-6 py-4 rounded-full font-bold text-xs sm:text-sm uppercase tracking-[0.14em] text-white bg-terracotta-600 hover:bg-terracotta-700 shadow-lg shadow-terracotta-600/25 active:scale-[0.985] transition-all flex items-center justify-between gap-3"
           >
-            <Navigation className="w-4 h-4" />
-            {getActionButtonLabel()}
+            <div className="w-5 h-5 flex items-center justify-center">
+              <LocateFixed className="w-4 h-4 sm:w-5 sm:h-5 text-white/90" />
+            </div>
+            <span className="flex-1 text-center font-bold">{getActionButtonLabel()}</span>
+            <div className="w-5 h-5 flex items-center justify-center">
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-white/90" />
+            </div>
           </button>
           <div className="text-center text-[11px] text-charcoal-400 font-sans">
-            Current Phase: <strong className="text-charcoal-700">{tripState.replace(/_/g, ' ')}</strong>. Every state transition updates Host and Guest dashboards live.
+            Phase: <strong className="text-charcoal-700">{tripState.replace(/_/g, ' ')}</strong> &bull; Updates live for Host &amp; Guest portals
           </div>
         </div>
       </div>
 
       {/* Today's Trips Schedule & SOS Alert */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-bold text-sm text-charcoal-900 font-serif">Today&apos;s Trip Roster</h4>
-            <Link href="/driver/trips" className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 font-sans">
-              View All
+        <div className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
+          <div className="flex items-center justify-between border-b border-warm-100 pb-3">
+            <h4 className="font-bold text-sm sm:text-base text-charcoal-900 font-serif">Today&apos;s Trip Roster</h4>
+            <Link
+              href="/driver/trips"
+              className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 font-sans flex items-center gap-1"
+            >
+              <span>View All</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
           <div className="divide-y divide-warm-100 font-sans">
             {todaysTrips.map((t, idx) => (
-              <div key={idx} className="py-3 flex items-center justify-between text-xs first:pt-0 last:pb-0">
-                <div className="space-y-0.5">
+              <div key={idx} className="py-3.5 flex items-center justify-between text-xs first:pt-0 last:pb-0 gap-3">
+                <div className="space-y-0.5 min-w-0">
                   <div className="font-bold text-charcoal-900">{t.time}</div>
-                  <div className="text-charcoal-600 font-medium">{t.route}</div>
-                  <div className="text-[11px] text-charcoal-400">{t.passengers}</div>
+                  <div className="text-charcoal-700 font-medium truncate">{t.route}</div>
+                  <div className="text-[11px] text-charcoal-400 truncate">{t.passengers}</div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-warm-100 text-charcoal-700 border border-warm-200">
+                <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FDFBF7] text-charcoal-700 border border-[#E8E2D9] shrink-0">
                   {t.status}
                 </span>
               </div>
@@ -306,38 +519,83 @@ export default function DriverDashboardPage() {
         </div>
 
         {/* SOS Emergency Dispatch Alert */}
-        <div className="p-6 rounded-3xl bg-burgundy-50 border border-burgundy-200 flex flex-col justify-between space-y-4 shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)]">
+        <div className="p-5 sm:p-6 rounded-3xl bg-burgundy-50/80 border border-burgundy-200/80 flex flex-col justify-between space-y-4 shadow-[0_4px_20px_-4px_rgba(70,50,40,0.05)]">
           <div className="space-y-2">
-            <div className="w-10 h-10 rounded-2xl bg-burgundy-800 text-white flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-2xl bg-burgundy-800 text-white flex items-center justify-center font-black text-xs">
               SOS
             </div>
-            <h4 className="font-bold text-sm text-burgundy-900 font-serif">Emergency Dispatch</h4>
-            <p className="text-xs text-burgundy-700 leading-relaxed font-sans">
-              Instantly broadcast high-priority audio &amp; visual alerts with your live coordinates to Host Operations.
+            <h4 className="font-bold text-sm sm:text-base text-burgundy-900 font-serif">Emergency Dispatch</h4>
+            <p className="text-xs text-burgundy-800/80 leading-relaxed font-sans">
+              Instantly broadcast high-priority priority alerts with your live coordinates directly to Host Operations.
             </p>
           </div>
 
           <button
             onClick={() => setShowSOSModal(true)}
-            className="w-full py-3 rounded-full bg-burgundy-800 hover:bg-burgundy-900 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-[0.985]"
+            className="w-full py-3 px-4 rounded-full bg-burgundy-800 hover:bg-burgundy-900 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-[0.985]"
           >
-            Broadcast Emergency SOS
+            Broadcast SOS
           </button>
         </div>
       </div>
 
-      {/* Guest Boarding Verification Modal */}
-      {showVerifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-charcoal-200 shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-safar-50 text-safar-600 mx-auto flex items-center justify-center">
-              <QrCode className="w-6 h-6" />
+      {/* GPS Permission Request Modal */}
+      {showPermissionModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-md animate-in fade-in"
+        >
+          <div className="bg-white rounded-3xl border border-[#E8E2D9] shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-terracotta-50 border border-terracotta-200 text-terracotta-700 mx-auto flex items-center justify-center">
+              <LocateFixed className="w-7 h-7" />
             </div>
 
-            <div>
-              <h3 className="text-base font-bold text-charcoal-900">Verify Guest Boarding Pass</h3>
-              <p className="text-xs text-charcoal-500 mt-1">
-                Enter the guest&apos;s 4-digit boarding code from their SAFAR mobile pass.
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-terracotta-700">
+                SAFAR Live Telemetry
+              </span>
+              <h3 className="font-serif text-lg font-bold text-charcoal-900">
+                Enable Live Trip Tracking
+              </h3>
+              <p className="text-xs text-charcoal-600 leading-relaxed font-sans">
+                SAFAR will track this active trip. Real device GPS will be broadcast to Host and Guest dashboards during transit.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2 font-sans">
+              <button
+                onClick={() => setShowPermissionModal(false)}
+                className="py-2.5 rounded-full border border-[#E8E2D9] text-xs font-semibold text-charcoal-600 hover:bg-warm-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStartTripWithGps}
+                className="py-2.5 rounded-full bg-terracotta-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-terracotta-700 shadow-md shadow-terracotta-600/20 transition-all active:scale-[0.98]"
+              >
+                Allow &amp; Start
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Boarding Verification Modal */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#E8E2D9] shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-warm-100 border border-[#E8E2D9] text-terracotta-700 mx-auto flex items-center justify-center">
+              <QrCode className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-terracotta-700">
+                Passenger Verification
+              </span>
+              <h3 className="text-lg font-bold text-charcoal-900 font-serif">Verify Guest Pass</h3>
+              <p className="text-xs text-charcoal-500">
+                Enter the 4-digit boarding code from the guest&apos;s SAFAR pass.
               </p>
             </div>
 
@@ -351,25 +609,25 @@ export default function DriverDashboardPage() {
                   setCodeError(false);
                 }}
                 placeholder="4827"
-                className="w-40 text-center tracking-widest text-3xl font-mono font-bold py-2.5 rounded-2xl border border-charcoal-300 focus:outline-none focus:ring-2 focus:ring-safar-500 mx-auto block"
+                className="w-44 text-center tracking-widest text-3xl font-mono font-bold py-3 rounded-2xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-terracotta-500 bg-[#FDFBF7] mx-auto block text-charcoal-900"
               />
               {codeError && (
-                <p className="text-xs text-rose-600 mt-1.5 font-medium">
+                <p className="text-xs text-rose-600 mt-2 font-medium">
                   Invalid boarding code. (Expected: 4827)
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
               <button
                 onClick={() => setShowVerifyModal(false)}
-                className="py-2.5 rounded-xl border border-charcoal-200 text-xs font-semibold text-charcoal-600 hover:bg-charcoal-50"
+                className="py-2.5 rounded-full border border-[#E8E2D9] text-xs font-semibold text-charcoal-600 hover:bg-warm-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleVerifyCode}
-                className="py-2.5 rounded-xl bg-safar-600 text-white text-xs font-semibold hover:bg-safar-700 shadow-sm"
+                className="py-2.5 rounded-full bg-terracotta-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-terracotta-700 shadow-md shadow-terracotta-600/20 transition-all active:scale-[0.98]"
               >
                 Verify &amp; Board
               </button>
@@ -380,23 +638,23 @@ export default function DriverDashboardPage() {
 
       {/* SOS Modal */}
       {showSOSModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-950/60 backdrop-blur-md animate-in fade-in">
           <div className="bg-white rounded-3xl border border-rose-200 shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
               <ShieldAlert className="w-8 h-8" />
             </div>
 
-            <div>
-              <h3 className="text-base font-bold text-charcoal-900">Broadcast Emergency SOS?</h3>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-charcoal-900 font-serif">Broadcast Emergency SOS?</h3>
               <p className="text-xs text-charcoal-500 mt-1">
-                This triggers an audible alarm and flashes critical status to the Host command room with your vehicle&apos;s GPS coordinates.
+                This triggers a priority alert and flashes critical status to the Host command room with your vehicle&apos;s real-time GPS coordinates.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
               <button
                 onClick={() => setShowSOSModal(false)}
-                className="py-2.5 rounded-xl border border-charcoal-200 text-xs font-semibold text-charcoal-600"
+                className="py-2.5 rounded-full border border-[#E8E2D9] text-xs font-semibold text-charcoal-600 hover:bg-warm-50"
               >
                 Cancel
               </button>
@@ -405,7 +663,7 @@ export default function DriverDashboardPage() {
                   alert('Emergency SOS dispatched to host operations!');
                   setShowSOSModal(false);
                 }}
-                className="py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 shadow-sm"
+                className="py-2.5 rounded-full bg-rose-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-rose-700 shadow-sm"
               >
                 Confirm SOS
               </button>

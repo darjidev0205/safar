@@ -42,29 +42,32 @@ export default function DriverVerificationPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      <div className="text-center space-y-1">
-        <div className="w-12 h-12 rounded-2xl bg-safar-50 text-safar-700 mx-auto flex items-center justify-center">
+    <div className="max-w-md mx-auto space-y-6 font-sans">
+      <div className="text-center space-y-1.5">
+        <div className="w-12 h-12 rounded-2xl bg-terracotta-50 border border-terracotta-200/70 text-terracotta-700 mx-auto flex items-center justify-center">
           <QrCode className="w-6 h-6" />
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold text-charcoal-900 tracking-tight">
-          Verify Guest Boarding Pass
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-terracotta-700 block">
+          Guest Boarding
+        </span>
+        <h1 className="text-xl sm:text-2xl font-bold text-charcoal-900 font-serif">
+          Verify Boarding Code
         </h1>
         <p className="text-xs text-charcoal-500">
-          Ask the guest for their 4-digit code shown on their SAFAR boarding pass.
+          Request the 4-digit verification code from the guest&apos;s mobile pass.
         </p>
       </div>
 
       {/* Code Display */}
-      <div className="p-6 rounded-3xl bg-white border border-charcoal-200/90 shadow-sm text-center space-y-5">
+      <div className="p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_4px_20px_-4px_rgba(70,50,40,0.04)] text-center space-y-5">
         <div className="flex items-center justify-center gap-3">
           {[0, 1, 2, 3].map((idx) => (
             <div
               key={idx}
               className={`w-14 h-16 rounded-2xl border-2 flex items-center justify-center text-3xl font-mono font-bold transition-all ${
                 code[idx]
-                  ? 'border-safar-600 bg-safar-50/50 text-safar-900'
-                  : 'border-charcoal-200 bg-charcoal-50 text-charcoal-400'
+                  ? 'border-terracotta-600 bg-terracotta-50/50 text-terracotta-900 shadow-xs'
+                  : 'border-[#E8E2D9] bg-[#FDFBF7] text-charcoal-400'
               }`}
             >
               {code[idx] || '•'}
@@ -73,7 +76,7 @@ export default function DriverVerificationPage() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-center gap-2 animate-in fade-in">
+          <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-center gap-2 animate-in fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>Invalid code. (Expected test code: 4827 or 1234)</span>
           </div>
@@ -81,7 +84,7 @@ export default function DriverVerificationPage() {
 
         {/* Verified Passenger Details Card */}
         {verifiedPassenger && (
-          <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-left space-y-3 animate-in zoom-in-95">
+          <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-200 text-left space-y-3.5 animate-in zoom-in-95">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                 Boarding Authorized
@@ -90,8 +93,8 @@ export default function DriverVerificationPage() {
             </div>
 
             <div>
-              <h3 className="font-bold text-base text-charcoal-900">{verifiedPassenger.name}</h3>
-              <p className="text-xs text-charcoal-600 font-medium">
+              <h3 className="font-bold text-base text-charcoal-900 font-serif">{verifiedPassenger.name}</h3>
+              <p className="text-xs text-charcoal-700 font-medium">
                 Party of {verifiedPassenger.partySize} &bull; {verifiedPassenger.group}
               </p>
               <p className="text-[11px] text-charcoal-500 mt-1">
@@ -101,9 +104,10 @@ export default function DriverVerificationPage() {
 
             <Link
               href="/driver"
-              className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+              className="w-full py-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98]"
             >
-              Confirm Boarding &amp; Return to Console <ArrowRight className="w-4 h-4" />
+              <span>Confirm Boarding &amp; Return</span>
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         )}
@@ -125,7 +129,7 @@ export default function DriverVerificationPage() {
                     handleKeyPress(key);
                   }
                 }}
-                className="py-3.5 rounded-2xl border border-charcoal-200 bg-white hover:bg-charcoal-50 text-base font-bold text-charcoal-800 active:scale-95 transition-all shadow-2xs"
+                className="py-3.5 rounded-2xl border border-[#E8E2D9] bg-[#FDFBF7] hover:bg-warm-100 text-base font-bold text-charcoal-800 active:scale-[0.95] transition-all shadow-2xs"
               >
                 {key}
               </button>

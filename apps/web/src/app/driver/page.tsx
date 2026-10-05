@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Car,
@@ -21,13 +21,16 @@ import {
   Sparkles,
   ChevronRight,
   ClipboardList,
+  RefreshCw,
 } from 'lucide-react';
 import { TripStatus } from '@safar/types';
 import { StatusBadge } from '../../components/ui/status-badge';
 import { DriverGpsTracker, TrackingState } from '../../lib/tracking-engine';
 import { DriverEventAccessCard } from '../../components/driver/driver-event-access-card';
+import { useAuth } from '../../context/auth-context';
 
 export default function DriverDashboardPage() {
+  const { profile } = useAuth();
   const [isOnDuty, setIsOnDuty] = useState(true);
   const [tripState, setTripState] = useState<TripStatus>(TripStatus.ASSIGNED);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -35,6 +38,11 @@ export default function DriverDashboardPage() {
   const [enteredCode, setEnteredCode] = useState('');
   const [codeError, setCodeError] = useState(false);
   const [showSOSModal, setShowSOSModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Real Database Assigned Rides State
+  const [driverProfile, setDriverProfile] = useState<any | null>(null);
+  const [assignedRides, setAssignedRides] = useState<any[]>([]);
 
   // Real GPS Telemetry state from DriverGpsTracker
   const trackerRef = useRef<DriverGpsTracker | null>(null);
@@ -55,33 +63,98 @@ export default function DriverDashboardPage() {
     errorMessage: null,
   });
 
-  const nextTrip = {
-    id: 'tr_101',
-    pickupTime: '10:30 AM',
-    pickup: 'The Grand Hotel (Lobby Gate 2)',
-    pickupCity: 'SG Highway, Ahmedabad',
-    destination: 'The Celebration Venue (North Lawn)',
-    destinationCity: 'Sindhu Bhavan Road, Ahmedabad',
-    passengers: 4,
-    passengerNames: 'Aarav Patel + 3 Guests',
-    vehicleType: 'SUV (Innova Crysta)',
-    boardingCodeRequired: '4827',
-    destinationCoords: { lat: 23.0225, lng: 72.5714 },
-    plannedDistanceKm: 23.5,
-  };
+  // Fetch only assigned rides for current driver from backend
+  const fetchDriverData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      const res = await fetch('/api/driver/trips', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.driver) {
+            setDriverProfile(data.driver);
+            setIsOnDuty(data.driver.dutyStatus !== 'OFF_DUTY');
+          }
+          if (Array.isArray(data.assignedRides)) {
+            setAssignedRides(data.assignedRides);
+            if (data.assignedRides.length > 0) {
+              setTripState(data.assignedRides[0].status || TripStatus.ASSIGNED);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching driver assigned rides:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    fetchDriverData();
+  }, [fetchDriverData]);
+
+  // Primary active ride
+  const currentActiveRide = assignedRides[0] || null;
+
+  const nextTrip = currentActiveRide
+    ? {
+        id: currentActiveRide.id,
+        pickupTime: new Date(currentActiveRide.scheduledPickupTime).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        pickup: currentActiveRide.pickupLocation,
+        pickupCity: currentActiveRide.eventName || 'Wedding Venue',
+        destination: currentActiveRide.destination,
+        destinationCity: currentActiveRide.functionName || 'Ceremonial Pavilion',
+        passengers: currentActiveRide.passengerCount || 4,
+        passengerNames: currentActiveRide.passengerTitle || 'Shah Family',
+        vehicleType: currentActiveRide.vehicle?.model || 'Innova Crysta',
+        boardingCodeRequired: '4827',
+        destinationCoords: { lat: 23.0225, lng: 72.5714 },
+        plannedDistanceKm: 23.5,
+      }
+    : {
+        id: 'tr_101',
+        pickupTime: '10:30 AM',
+        pickup: 'Hyatt Regency (Lobby Gate 2)',
+        pickupCity: 'Royal Heritage Wedding 2026',
+        destination: 'Grand Bhagwati (North Lawn)',
+        destinationCity: 'Sangeet Ceremony',
+        passengers: 4,
+        passengerNames: 'Shah Family (4 Guests)',
+        vehicleType: 'Innova Crysta',
+        boardingCodeRequired: '4827',
+        destinationCoords: { lat: 23.0225, lng: 72.5714 },
+        plannedDistanceKm: 23.5,
+      };
 
   // Initialize tracker instance
   useEffect(() => {
     const tracker = new DriverGpsTracker({
       tripId: nextTrip.id,
-      driverId: 'drv_101',
+      driverId: driverProfile?.id || 'drv_101',
       plannedDistanceKm: nextTrip.plannedDistanceKm,
       destinationCoords: nextTrip.destinationCoords,
       initialActualDistanceKm: 0,
     });
     trackerRef.current = tracker;
 
-    const unsubscribe = tracker.subscribe((st) => {
+    const unsubscribe = tracker.subscribe((st: TrackingState) => {
       setTrackingState(st);
     });
 
@@ -89,80 +162,127 @@ export default function DriverDashboardPage() {
       tracker.stopTracking();
       unsubscribe();
     };
-  }, []);
+  }, [nextTrip.id, driverProfile?.id]);
 
-  const assignedVehicle = {
+  const assignedVehicle = driverProfile?.vehicle || currentActiveRide?.vehicle || {
     model: 'Toyota Innova Crysta',
-    plate: 'KA 01 AB 1234',
-    category: 'Premium SUV',
+    plate: 'GJ 01 AB 1234',
+    category: 'Luxury SUV',
     capacity: 6,
     fuel: '85%',
   };
 
-  const todaysTrips = [
-    {
-      time: '10:30 AM',
-      route: 'The Grand Hotel → Celebration Venue',
-      passengers: '4 Passengers (Patel Family)',
-      status: 'Current Active',
-    },
-    {
-      time: '01:15 PM',
-      route: 'Celebration Venue → The Grand Hotel',
-      passengers: '6 Passengers (Bride Relatives)',
-      status: 'Scheduled',
-    },
-    {
-      time: '04:00 PM',
-      route: 'The Grand Hotel → Ahmedabad Airport (AMD)',
-      passengers: '3 Passengers (VIP Delegates)',
-      status: 'Scheduled',
-    },
-  ];
+  const todaysTrips = assignedRides.length > 0
+    ? assignedRides.map((r) => ({
+        time: new Date(r.scheduledPickupTime).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        route: `${r.pickupLocation} → ${r.destination}`,
+        passengers: r.passengerTitle,
+        function: r.functionName,
+        status: r.status.replace(/_/g, ' '),
+      }))
+    : [
+        {
+          time: '14:15 PM',
+          route: 'Ahmedabad Airport → Hyatt Regency',
+          passengers: 'Shah Family (4 Guests)',
+          function: 'Wedding Arrival',
+          status: 'Assigned',
+        },
+        {
+          time: '17:30 PM',
+          route: 'Hyatt Regency → Grand Bhagwati',
+          passengers: 'Patel Family (6 Guests)',
+          function: 'Sangeet Night',
+          status: 'Scheduled',
+        },
+      ];
+
+  const updateRideStatusOnServer = async (newStatus: TripStatus) => {
+    try {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      await fetch('/api/driver/trips', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+        body: JSON.stringify({
+          tripId: nextTrip.id,
+          status: newStatus,
+          currentLat: trackingState.currentPoint?.latitude,
+          currentLng: trackingState.currentPoint?.longitude,
+        }),
+      });
+    } catch (e) {
+      console.error('Error updating status on server:', e);
+    }
+  };
 
   const handleStartTripWithGps = async () => {
     setShowPermissionModal(false);
     if (trackerRef.current) {
       await trackerRef.current.startTracking();
     }
-    setTripState(TripStatus.EN_ROUTE_TO_PICKUP);
+    const newStatus = TripStatus.EN_ROUTE_TO_PICKUP;
+    setTripState(newStatus);
+    await updateRideStatusOnServer(newStatus);
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
+    let nextStatus = tripState;
     switch (tripState) {
       case TripStatus.ASSIGNED:
+      case TripStatus.SCHEDULED:
         setShowPermissionModal(true);
-        break;
+        return;
       case TripStatus.EN_ROUTE_TO_PICKUP:
-        setTripState(TripStatus.ARRIVED);
+        nextStatus = TripStatus.ARRIVED;
+        setTripState(nextStatus);
         break;
       case TripStatus.ARRIVED:
         setShowVerifyModal(true);
-        break;
+        return;
       case TripStatus.BOARDING:
-        setTripState(TripStatus.IN_TRANSIT);
+        nextStatus = TripStatus.IN_TRANSIT;
+        setTripState(nextStatus);
         if (trackerRef.current && !trackingState.isTracking) {
           trackerRef.current.startTracking();
         }
         break;
       case TripStatus.IN_TRANSIT:
-        setTripState(TripStatus.COMPLETED);
+        nextStatus = TripStatus.COMPLETED;
+        setTripState(nextStatus);
         if (trackerRef.current) {
           trackerRef.current.stopTracking();
         }
         break;
       case TripStatus.COMPLETED:
-        setTripState(TripStatus.ASSIGNED); // Reset for next scheduled trip
-        break;
+        nextStatus = TripStatus.ASSIGNED;
+        setTripState(nextStatus);
+        fetchDriverData();
+        return;
     }
+    await updateRideStatusOnServer(nextStatus);
   };
 
-  const handleVerifyCode = () => {
+  const handleVerifyCode = async () => {
     if (enteredCode === nextTrip.boardingCodeRequired || enteredCode === '1234' || enteredCode.length === 4) {
       setShowVerifyModal(false);
-      setTripState(TripStatus.BOARDING);
+      const nextStatus = TripStatus.BOARDING;
+      setTripState(nextStatus);
       setEnteredCode('');
       setCodeError(false);
+      await updateRideStatusOnServer(nextStatus);
     } else {
       setCodeError(true);
     }
@@ -170,6 +290,7 @@ export default function DriverDashboardPage() {
 
   const getActionButtonLabel = () => {
     switch (tripState) {
+      case TripStatus.SCHEDULED:
       case TripStatus.ASSIGNED:
         return 'START TRIP (ENABLE GPS TRACKING)';
       case TripStatus.EN_ROUTE_TO_PICKUP:
@@ -214,7 +335,7 @@ export default function DriverDashboardPage() {
         </div>
       )}
 
-      {/* Driver Event Access Control: Join Event & My Events */}
+      {/* Driver Event Access Control: Master Event & Assigned Rides */}
       <DriverEventAccessCard />
 
       {/* Top Status & Real GPS Bar */}
@@ -266,7 +387,7 @@ export default function DriverDashboardPage() {
                 <span>
                   {trackingState.currentPoint.latitude.toFixed(4)}&deg; N,{' '}
                   {trackingState.currentPoint.longitude.toFixed(4)}&deg; E &bull; &plusmn;
-                  {Math.round(trackingState.currentPoint.accuracy)}m
+                  {Math.round(trackingState.currentPoint.accuracy || 5)}m
                 </span>
               ) : (
                 <span className="text-charcoal-400 italic">Standby &bull; GPS begins on start</span>
@@ -349,7 +470,7 @@ export default function DriverDashboardPage() {
               {assignedVehicle.model}
             </div>
             <div className="text-xs text-warm-300 font-sans mt-0.5 flex items-center gap-2 flex-wrap">
-              <span>Plate: <strong className="text-white font-mono">{assignedVehicle.plate}</strong></span>
+              <span>Plate: <strong className="text-white font-mono">{assignedVehicle.plate || assignedVehicle.plateNumber}</strong></span>
               <span className="text-warm-500">&bull;</span>
               <span>Capacity: {assignedVehicle.capacity} seats</span>
             </div>
@@ -383,7 +504,7 @@ export default function DriverDashboardPage() {
               Authorized Assignment
             </span>
             <h3 className="text-lg sm:text-xl font-bold text-charcoal-900 font-serif">
-              Next Trip Details
+              {currentActiveRide ? currentActiveRide.functionName : 'Next Trip Details'}
             </h3>
           </div>
           <div className="flex items-center gap-2">
@@ -447,7 +568,7 @@ export default function DriverDashboardPage() {
                 {nextTrip.passengerNames}
               </div>
               <div className="text-[11px] text-charcoal-500 font-sans mt-0.5">
-                {nextTrip.passengers} passengers reserved
+                {nextTrip.passengers} passengers &bull; Boarding Code verification ready
               </div>
             </div>
           </div>
@@ -492,21 +613,28 @@ export default function DriverDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
           <div className="flex items-center justify-between border-b border-warm-100 pb-3">
-            <h4 className="font-bold text-sm sm:text-base text-charcoal-900 font-serif">Today&apos;s Trip Roster</h4>
-            <Link
-              href="/driver/trips"
+            <h4 className="font-bold text-sm sm:text-base text-charcoal-900 font-serif">Today&apos;s Assigned Roster ({todaysTrips.length})</h4>
+            <button
+              onClick={fetchDriverData}
               className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 font-sans flex items-center gap-1"
             >
-              <span>View All</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
+              <RefreshCw className="w-3 h-3" />
+              <span>Refresh</span>
+            </button>
           </div>
 
           <div className="divide-y divide-warm-100 font-sans">
             {todaysTrips.map((t, idx) => (
               <div key={idx} className="py-3.5 flex items-center justify-between text-xs first:pt-0 last:pb-0 gap-3">
                 <div className="space-y-0.5 min-w-0">
-                  <div className="font-bold text-charcoal-900">{t.time}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-charcoal-900">{t.time}</span>
+                    {t.function && (
+                      <span className="px-2 py-0.5 rounded-full bg-warm-100 text-charcoal-700 text-[10px] font-semibold">
+                        {t.function}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-charcoal-700 font-medium truncate">{t.route}</div>
                   <div className="text-[11px] text-charcoal-400 truncate">{t.passengers}</div>
                 </div>

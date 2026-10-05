@@ -122,14 +122,14 @@ export async function POST(
         });
       }
 
-      // If DRIVER, ensure Driver record is affiliated with account
+      // If DRIVER, ensure Driver record is affiliated with account and DriverEvent is APPROVED
       if (accessRequest.role === Role.DRIVER) {
-        const driverRecord = await tx.driver.findFirst({
+        let driverRecord = await tx.driver.findFirst({
           where: { userId: accessRequest.userId },
         });
 
         if (!driverRecord) {
-          await tx.driver.create({
+          driverRecord = await tx.driver.create({
             data: {
               accountId: context.account.id,
               userId: accessRequest.userId,
@@ -139,6 +139,29 @@ export async function POST(
             },
           });
         }
+
+        await tx.driverEvent.upsert({
+          where: {
+            driverId_eventId: {
+              driverId: driverRecord.id,
+              eventId: accessRequest.eventId,
+            },
+          },
+          create: {
+            driverId: driverRecord.id,
+            eventId: accessRequest.eventId,
+            status: 'APPROVED',
+            requestedAt: accessRequest.requestedAt,
+            approvedAt: now,
+            approvedBy: context.user.id,
+          },
+          update: {
+            status: 'APPROVED',
+            approvedAt: now,
+            approvedBy: context.user.id,
+            rejectedAt: null,
+          },
+        });
       }
 
       return reqUpdated;

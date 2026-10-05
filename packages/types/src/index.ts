@@ -53,6 +53,35 @@ export enum NotificationChannel {
   IN_APP = 'IN_APP',
 }
 
+export enum FunctionType {
+  MEHENDI = 'MEHENDI',
+  HALDI = 'HALDI',
+  SANGEET = 'SANGEET',
+  WEDDING = 'WEDDING',
+  RECEPTION = 'RECEPTION',
+  ENGAGEMENT = 'ENGAGEMENT',
+  PHERAS = 'PHERAS',
+  VIDAAI = 'VIDAAI',
+  BRUNCH = 'BRUNCH',
+  DINNER = 'DINNER',
+  OTHER = 'OTHER',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum DriverEventStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REMOVED',
+  REMOVED = 'REMOVED',
+}
+
+export enum GuestFunctionStatus {
+  ASSIGNED = 'ASSIGNED',
+  CONFIRMED = 'CONFIRMED',
+  DECLINED = 'DECLINED',
+  REMOVED = 'REMOVED',
+}
+
 export interface UserProfile {
   id: string;
   firebaseUid: string;
@@ -82,9 +111,12 @@ export interface EventModel {
   startDate: string;
   endDate: string;
   joinCode: string;
+  guestAccessCode?: string;
+  driverAccessCode?: string;
   bannerUrl?: string | null;
   description?: string | null;
   status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  functions?: FunctionModel[];
   createdAt: string;
   updatedAt: string;
 }
@@ -102,10 +134,22 @@ export interface PlaceModel {
 export interface FunctionModel {
   id: string;
   eventId: string;
-  placeId: string;
+  placeId?: string | null;
   name: string;
+  type?: string;
+  date?: string | null;
   startTime: string;
   endTime: string;
+  venueName?: string | null;
+  venueAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  guestRules?: string | null;
+  transportRules?: string | null;
+  description?: string | null;
+  status?: string;
+  guestCount?: number;
+  tripsCount?: number;
   place?: PlaceModel;
 }
 
@@ -135,6 +179,19 @@ export interface DriverModel {
   currentVehicle?: VehicleModel | null;
 }
 
+export interface DriverEventModel {
+  id: string;
+  driverId: string;
+  eventId: string;
+  status: DriverEventStatus;
+  requestedAt: string;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  approvedBy?: string | null;
+  driver?: DriverModel;
+  event?: EventModel;
+}
+
 export interface GuestModel {
   id: string;
   eventId: string;
@@ -148,20 +205,46 @@ export interface GuestModel {
   notes?: string | null;
 }
 
+export interface GuestFunctionModel {
+  id: string;
+  guestId: string;
+  functionId: string;
+  status: GuestFunctionStatus;
+  isAttending: boolean;
+  assignedAt: string;
+  guest?: GuestModel;
+  function?: FunctionModel;
+}
+
 export interface TripModel {
   id: string;
   eventId: string;
+  functionId?: string | null;
   driverId?: string | null;
   vehicleId?: string | null;
-  originPlaceId: string;
-  destinationPlaceId: string;
+  originPlaceId?: string;
+  destinationPlaceId?: string;
+  pickupLocation?: string | null;
+  pickupLatitude?: number | null;
+  pickupLongitude?: number | null;
+  destination?: string | null;
+  destinationLatitude?: number | null;
+  destinationLongitude?: number | null;
   scheduledPickupTime: string;
   estimatedArrivalTime?: string | null;
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
   status: TripStatus;
+  plannedDistanceKm?: number | null;
+  actualDistanceKm?: number | null;
+  estimatedCost?: number | null;
+  actualCost?: number | null;
+  boardingCode?: string | null;
   origin?: PlaceModel;
-  destination?: PlaceModel;
+  destinationLocation?: PlaceModel;
   driver?: DriverModel;
   vehicle?: VehicleModel;
+  function?: FunctionModel;
   bookingsCount?: number;
   totalPassengers?: number;
   passengerCapacity?: number;
@@ -197,6 +280,15 @@ export interface LocationPingModel {
   speed?: number | null;
   accuracy?: number | null;
   timestamp: string;
+}
+
+export interface PricingRule {
+  vehicleCategory: VehicleCategory;
+  baseFare: number;
+  perKmRate: number;
+  perMinuteRate: number;
+  minimumFare: number;
+  waitingRatePerMinute: number;
 }
 
 export interface ApiResponse<T = any> {

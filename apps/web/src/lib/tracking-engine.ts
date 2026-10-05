@@ -1,47 +1,218 @@
 /**
- * SAFAR — Real GPS Tracking & Distance Calculation Engine
- *
- * Implements production-grade vehicle telemetry:
- * 1. Device GPS as single source of truth (navigator.geolocation.watchPosition)
- * 2. Strict Noise & Jump Filtering (rejects poor accuracy & unrealistic jumps)
- * 3. Sequential Haversine Distance Accumulation (calculates real km driven)
- * 4. Adaptive Throttling (5-10s while moving, 30s heartbeat when stationary)
- * 5. Offline Queueing & Recovery Buffer (no data loss during network drops)
- * 6. Privacy & Lifecycle Enforcement (active ONLY during trip)
+ * Geospatial GPS Telemetry & Distance Accumulator Engine
+ * Implements Haversine distance, jitter filtering, speed thresholding,
+ * and teleport outlier rejection.
  */
 
-export interface RawGpsPoint {
+export interface GpsPing {
   latitude: number;
   longitude: number;
-  accuracy: number; // meters
-  heading: number | null; // degrees (0-360)
-  speed: number | null; // m/s
-  timestamp: number; // ms epoch
+  timestamp: Date | string | number;
+  accuracyMeters?: number;
+  speedKmh?: number;
+  heading?: number;
 }
 
-export interface TelemetryPayload {
-  tripId: string;
-  driverId: string;
-  vehicleId?: string;
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  speedKmh: number;
-  heading: number | null;
-  timestamp: number;
-  actualDistanceKm: number;
-  remainingDistanceKm?: number;
-  plannedDistanceKm?: number;
-  status: string;
-  offlineBufferedCount?: number;
+export interface AccumulationResult {
+  deltaDistanceKm: number;
+  newTotalDistanceKm: number;
+  isAccepted: boolean;
+  rejectionReason?:
+    | 'JITTER_BELOW_THRESHOLD'
+    | 'EXCESSIVE_SPEED_OUTLIER'
+    | 'INVALID_COORDINATES'
+    | 'POOR_ACCURACY'
+    | 'STALE_TIMESTAMP'
+    | 'DUPLICATE_POSITION'
+    | 'OUT_OF_BOUNDS_COORDINATES';
+}
+
+const EARTH_RADIUS_KM = 6371;
+const MIN_DISTANCE_THRESHOLD_KM = 0.005; // 5 meters (ignores stationary GPS flutter)
+const MAX_PLAUSIBLE_SPEED_KMH = 160;    // 160 km/h (rejects GPS teleport jumps)
+const MAX_ACCEPTABLE_ACCURACY_M = 100;  // 100m (rejects low accuracy cell-tower pings)
+const MAX_TIMESTAMP_AGE_MS = 300000;    // 5 minutes (rejects stale historical pings)
+
+/**
+ * Calculates great-circle distance between two coordinates using Haversine formula.
+ */
+export function calculateHaversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  if (
+    lat1 < -90 || lat1 > 90 ||
+    lat2 < -90 || lat2 > 90 ||
+    lon1 < -180 || lon1 > 180 ||
+    lon2 < -180 || lon2 > 180
+  ) {
+    return 0;
+  }
+
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_KM * c;
+}
+
+/**
+ * Validates and accumulates a new GPS ping onto current trip distance.
+ */
+export function processGpsPingAndAccumulateDistance({
+  previousPing,
+  newPing,
+  currentTotalDistanceKm = 0,
+}: {
+  previousPing?: GpsPing | null;
+  newPing: GpsPing;
+  currentTotalDistanceKm?: number;
+}): AccumulationResult {
+  // Validate coordinates
+  if (
+    typeof newPing.latitude !== 'number' ||
+    typeof newPing.longitude !== 'number' ||
+    isNaN(newPing.latitude) ||
+    isNaN(newPing.longitude)
+  ) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'INVALID_COORDINATES',
+    };
+  }
+
+  // Check physical coordinate boundaries
+  if (
+    newPing.latitude < -90 ||
+    newPing.latitude > 90 ||
+    newPing.longitude < -180 ||
+    newPing.longitude > 180
+  ) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'OUT_OF_BOUNDS_COORDINATES',
+    };
+  }
+
+  // Filter stale timestamps (> 5 min old or older than previous ping)
+  const pingTime = new Date(newPing.timestamp).getTime();
+  if (previousPing) {
+    const prevTime = new Date(previousPing.timestamp).getTime();
+    if (pingTime < prevTime) {
+      return {
+        deltaDistanceKm: 0,
+        newTotalDistanceKm: currentTotalDistanceKm,
+        isAccepted: false,
+        rejectionReason: 'STALE_TIMESTAMP',
+      };
+    }
+  }
+
+  if (Date.now() - pingTime > MAX_TIMESTAMP_AGE_MS) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'STALE_TIMESTAMP',
+    };
+  }
+
+  // Filter poor accuracy
+  if (newPing.accuracyMeters && newPing.accuracyMeters > MAX_ACCEPTABLE_ACCURACY_M) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'POOR_ACCURACY',
+    };
+  }
+
+  // Check duplicate position
+  if (
+    previousPing &&
+    previousPing.latitude === newPing.latitude &&
+    previousPing.longitude === newPing.longitude
+  ) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'DUPLICATE_POSITION',
+    };
+  }
+
+  // First ping of trip: initialize without incrementing distance
+  if (!previousPing) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: true,
+    };
+  }
+
+  const distanceKm = calculateHaversineDistanceKm(
+    previousPing.latitude,
+    previousPing.longitude,
+    newPing.latitude,
+    newPing.longitude
+  );
+
+  // Check minimum movement threshold (skip jitter while parked or waiting at venue)
+  if (distanceKm < MIN_DISTANCE_THRESHOLD_KM) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'JITTER_BELOW_THRESHOLD',
+    };
+  }
+
+  // Check time delta and implied speed
+  const prevTime = new Date(previousPing.timestamp).getTime();
+  const newTime = new Date(newPing.timestamp).getTime();
+  const elapsedSeconds = Math.max(1, (newTime - prevTime) / 1000);
+
+  const impliedSpeedKmh = (distanceKm / elapsedSeconds) * 3600;
+
+  // Reject outlier teleportation / coordinate jumps
+  if (impliedSpeedKmh > MAX_PLAUSIBLE_SPEED_KMH) {
+    return {
+      deltaDistanceKm: 0,
+      newTotalDistanceKm: currentTotalDistanceKm,
+      isAccepted: false,
+      rejectionReason: 'EXCESSIVE_SPEED_OUTLIER',
+    };
+  }
+
+  const roundedDelta = Math.round(distanceKm * 1000) / 1000;
+  const newTotal = Math.round((currentTotalDistanceKm + roundedDelta) * 1000) / 1000;
+
+  return {
+    deltaDistanceKm: roundedDelta,
+    newTotalDistanceKm: newTotal,
+    isAccepted: true,
+  };
 }
 
 export interface TrackingState {
   isTracking: boolean;
-  permissionStatus: 'prompt' | 'granted' | 'denied' | 'unavailable' | 'timeout';
+  permissionStatus: 'granted' | 'denied' | 'prompt';
   isOnline: boolean;
-  currentPoint: RawGpsPoint | null;
-  previousValidPoint: RawGpsPoint | null;
+  currentPoint: { latitude: number; longitude: number; speed?: number | null; accuracy?: number | null } | null;
+  previousValidPoint: { latitude: number; longitude: number } | null;
   actualDistanceKm: number;
   plannedDistanceKm: number;
   remainingDistanceKm: number;
@@ -49,84 +220,38 @@ export interface TrackingState {
   heading: number | null;
   breadcrumbs: Array<{ lat: number; lng: number; timestamp: number }>;
   queuedPingsCount: number;
-  lastSyncedAt: number | null;
+  lastSyncedAt: Date | string | null;
   errorMessage: string | null;
 }
 
-export type TrackingListener = (state: TrackingState) => void;
-
-import {
-  calculateHaversineDistanceKm,
-  defaultGpsValidator,
-} from './safar-engine';
-
-export function calculateHaversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  return calculateHaversineDistanceKm(lat1, lon1, lat2, lon2);
+export interface DriverGpsTrackerConfig {
+  tripId: string;
+  driverId: string;
+  plannedDistanceKm?: number;
+  destinationCoords?: { lat: number; lng: number };
+  initialActualDistanceKm?: number;
 }
-
-function isValidGpsPoint(
-  newPoint: RawGpsPoint,
-  previousPoint: RawGpsPoint | null
-): { valid: boolean; distanceKm: number; reason?: string } {
-  const result = defaultGpsValidator.validateTelemetry(
-    {
-      driverId: 'driver_client',
-      latitude: newPoint.latitude,
-      longitude: newPoint.longitude,
-      accuracy: newPoint.accuracy,
-      speedKmh: newPoint.speed ? newPoint.speed * 3.6 : undefined,
-      heading: newPoint.heading,
-      timestamp: newPoint.timestamp,
-    },
-    previousPoint
-  );
-
-  return {
-    valid: result.isValid && result.isUsableForDistance,
-    distanceKm: result.distanceDeltaKm,
-    reason: result.rejectionReason,
-  };
-}
-
-// ============================================================================
-// DRIVER GPS TRACKER CLASS
-// ============================================================================
 
 export class DriverGpsTracker {
-  private tripId: string;
-  private driverId: string;
-  private vehicleId?: string;
-  private plannedDistanceKm: number;
-  private destinationCoords?: { lat: number; lng: number };
-
-  private watchId: number | null = null;
+  private config: DriverGpsTrackerConfig;
   private state: TrackingState;
-  private listeners: Set<TrackingListener> = new Set();
+  private listeners: Set<(state: TrackingState) => void> = new Set();
+  private watchId: number | null = null;
+  private lastPing: GpsPing | null = null;
+  private lastNetworkSyncTime: number = 0;
+  private queuedPings: Array<{
+    latitude: number;
+    longitude: number;
+    accuracyMeters?: number;
+    speedKmh?: number;
+    heading?: number;
+    timestamp: number | string;
+  }> = [];
+  private onlineListener: (() => void) | null = null;
+  private offlineListener: (() => void) | null = null;
 
-  private offlineQueue: TelemetryPayload[] = [];
-  private lastTransmissionTime = 0;
-  private lastTransmissionPoint: RawGpsPoint | null = null;
-  private isTransmitting = false;
-
-  constructor(config: {
-    tripId: string;
-    driverId: string;
-    vehicleId?: string;
-    plannedDistanceKm?: number;
-    destinationCoords?: { lat: number; lng: number };
-    initialActualDistanceKm?: number;
-  }) {
-    this.tripId = config.tripId;
-    this.driverId = config.driverId;
-    this.vehicleId = config.vehicleId;
-    this.plannedDistanceKm = config.plannedDistanceKm || 0;
-    this.destinationCoords = config.destinationCoords;
-
+  constructor(config: DriverGpsTrackerConfig) {
+    this.config = config;
     this.state = {
       isTracking: false,
       permissionStatus: 'prompt',
@@ -134,8 +259,8 @@ export class DriverGpsTracker {
       currentPoint: null,
       previousValidPoint: null,
       actualDistanceKm: config.initialActualDistanceKm || 0,
-      plannedDistanceKm: this.plannedDistanceKm,
-      remainingDistanceKm: this.plannedDistanceKm,
+      plannedDistanceKm: config.plannedDistanceKm || 23.5,
+      remainingDistanceKm: config.plannedDistanceKm || 23.5,
       speedKmh: 0,
       heading: null,
       breadcrumbs: [],
@@ -143,290 +268,166 @@ export class DriverGpsTracker {
       lastSyncedAt: null,
       errorMessage: null,
     };
-
-    this.initNetworkListeners();
-    this.loadOfflineQueue();
   }
 
-  private initNetworkListeners() {
-    if (typeof window === 'undefined') return;
-
-    window.addEventListener('online', () => {
-      this.state.isOnline = true;
-      this.notifyListeners();
-      this.flushOfflineQueue();
-    });
-
-    window.addEventListener('offline', () => {
-      this.state.isOnline = false;
-      this.notifyListeners();
-    });
+  public subscribe(callback: (state: TrackingState) => void): () => void {
+    this.listeners.add(callback);
+    callback(this.state);
+    return () => this.listeners.delete(callback);
   }
 
-  private loadOfflineQueue() {
-    if (typeof window === 'undefined') return;
+  private notify() {
+    this.listeners.forEach((cb) => cb({ ...this.state }));
+  }
+
+  private async sendPingToBackend(payload: any) {
+    if (!this.config.tripId) return;
     try {
-      const stored = localStorage.getItem(`safar_queue_${this.tripId}`);
-      if (stored) {
-        this.offlineQueue = JSON.parse(stored);
-        this.state.queuedPingsCount = this.offlineQueue.length;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  private saveOfflineQueue() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(`safar_queue_${this.tripId}`, JSON.stringify(this.offlineQueue));
-      this.state.queuedPingsCount = this.offlineQueue.length;
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  public subscribe(listener: TrackingListener): () => void {
-    this.listeners.add(listener);
-    listener(this.state);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notifyListeners() {
-    this.listeners.forEach((fn) => fn({ ...this.state }));
-  }
-
-  /**
-   * Starts tracking driver GPS via navigator.geolocation.watchPosition.
-   */
-  public async startTracking(): Promise<boolean> {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      this.state.permissionStatus = 'unavailable';
-      this.state.errorMessage = 'Geolocation is not supported by your device browser.';
-      this.notifyListeners();
-      return false;
-    }
-
-    if (this.state.isTracking) return true;
-
-    const options: PositionOptions = {
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 3000,
-    };
-
-    return new Promise((resolve) => {
-      this.watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          this.handlePositionUpdate(pos);
-          if (!this.state.isTracking) {
-            this.state.isTracking = true;
-            this.state.permissionStatus = 'granted';
-            this.state.errorMessage = null;
-            this.notifyListeners();
-            resolve(true);
-          }
-        },
-        (err) => {
-          this.handlePositionError(err);
-          if (!this.state.isTracking) {
-            resolve(false);
-          }
-        },
-        options
-      );
-    });
-  }
-
-  private handlePositionUpdate(pos: GeolocationPosition) {
-    const rawPoint: RawGpsPoint = {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      heading: pos.coords.heading,
-      speed: pos.coords.speed,
-      timestamp: pos.timestamp || Date.now(),
-    };
-
-    const speedKmh = pos.coords.speed !== null && pos.coords.speed >= 0
-      ? Math.round(pos.coords.speed * 3.6)
-      : 0;
-
-    const { valid, distanceKm } = isValidGpsPoint(rawPoint, this.state.previousValidPoint);
-
-    if (valid) {
-      // Sequential Real KM Accumulation
-      const newActualDistance = Math.round((this.state.actualDistanceKm + distanceKm) * 100) / 100;
-
-      // Calculate remaining distance from current point to destination venue
-      let remainingKm = this.state.remainingDistanceKm;
-      if (this.destinationCoords) {
-        remainingKm = Math.round(
-          calculateHaversineKm(
-            rawPoint.latitude,
-            rawPoint.longitude,
-            this.destinationCoords.lat,
-            this.destinationCoords.lng
-          ) * 10
-        ) / 10;
-      }
-
-      this.state.currentPoint = rawPoint;
-      this.state.previousValidPoint = rawPoint;
-      this.state.actualDistanceKm = newActualDistance;
-      this.state.remainingDistanceKm = remainingKm;
-      this.state.speedKmh = speedKmh;
-      this.state.heading = rawPoint.heading;
-      this.state.errorMessage = null;
-
-      // Keep recent breadcrumb trail (max 100 points)
-      this.state.breadcrumbs = [
-        ...this.state.breadcrumbs.slice(-99),
-        { lat: rawPoint.latitude, lng: rawPoint.longitude, timestamp: rawPoint.timestamp },
-      ];
-
-      this.notifyListeners();
-      this.evaluateTransmission(rawPoint);
-    } else {
-      // Point rejected due to noise or jitter, but update speed display if available
-      this.state.speedKmh = speedKmh;
-      this.notifyListeners();
-    }
-  }
-
-  private handlePositionError(err: GeolocationPositionError) {
-    switch (err.code) {
-      case err.PERMISSION_DENIED:
-        this.state.permissionStatus = 'denied';
-        this.state.errorMessage = 'Location permission was denied. Please allow GPS access in your browser settings to track this trip.';
-        break;
-      case err.POSITION_UNAVAILABLE:
-        this.state.permissionStatus = 'unavailable';
-        this.state.errorMessage = 'GPS signal unavailable. Please ensure location services are enabled on your device.';
-        break;
-      case err.TIMEOUT:
-        this.state.permissionStatus = 'timeout';
-        this.state.errorMessage = 'GPS location request timed out. Retrying…';
-        break;
-    }
-    this.notifyListeners();
-  }
-
-  /**
-   * Evaluates whether to broadcast the location based on distance / time thresholds.
-   */
-  private evaluateTransmission(point: RawGpsPoint) {
-    const now = Date.now();
-    const timeSinceLastSend = (now - this.lastTransmissionTime) / 1000;
-
-    let distanceSinceLastSendKm = 0;
-    if (this.lastTransmissionPoint) {
-      distanceSinceLastSendKm = calculateHaversineKm(
-        this.lastTransmissionPoint.latitude,
-        this.lastTransmissionPoint.longitude,
-        point.latitude,
-        point.longitude
-      );
-    }
-
-    // Rules:
-    // 1. If moved >= 15 meters and >= 5 seconds have passed -> transmit
-    // 2. If time >= 10 seconds and vehicle is in motion -> transmit
-    // 3. If stationary, heartbeat transmission every 30 seconds
-    const shouldTransmit =
-      !this.lastTransmissionPoint ||
-      (distanceSinceLastSendKm >= 0.015 && timeSinceLastSend >= 5) ||
-      (timeSinceLastSend >= 10 && (point.speed || 0) > 1.5) ||
-      timeSinceLastSend >= 30;
-
-    if (shouldTransmit) {
-      this.lastTransmissionTime = now;
-      this.lastTransmissionPoint = point;
-      this.transmitPayload({
-        tripId: this.tripId,
-        driverId: this.driverId,
-        vehicleId: this.vehicleId,
-        latitude: point.latitude,
-        longitude: point.longitude,
-        accuracy: point.accuracy,
-        speedKmh: this.state.speedKmh,
-        heading: point.heading,
-        timestamp: point.timestamp,
-        actualDistanceKm: this.state.actualDistanceKm,
-        remainingDistanceKm: this.state.remainingDistanceKm,
-        plannedDistanceKm: this.state.plannedDistanceKm,
-        status: 'IN_TRANSIT',
+      await fetch(`/api/trips/${this.config.tripId}/gps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
+      this.state.lastSyncedAt = new Date().toISOString();
+      this.notify();
+    } catch (err) {
+      console.warn('GPS ping sync note:', err);
     }
   }
 
-  private async transmitPayload(payload: TelemetryPayload) {
-    if (!this.state.isOnline) {
-      this.offlineQueue.push(payload);
-      this.saveOfflineQueue();
+  private flushOfflineQueue() {
+    if (this.queuedPings.length === 0 || !this.config.tripId) return;
+    const latest = this.queuedPings[this.queuedPings.length - 1];
+    this.queuedPings = [];
+    this.state.queuedPingsCount = 0;
+    this.notify();
+    this.sendPingToBackend(latest);
+  }
+
+  public startTracking() {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      this.state.errorMessage = 'Geolocation is not supported by this device';
+      this.notify();
       return;
     }
 
-    try {
-      this.isTransmitting = true;
-      const res = await fetch('/api/driver/location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          bufferedPings: this.offlineQueue,
-        }),
-      });
+    // Monitor network connectivity
+    this.onlineListener = () => {
+      this.state.isOnline = true;
+      this.notify();
+      this.flushOfflineQueue();
+    };
+    this.offlineListener = () => {
+      this.state.isOnline = false;
+      this.notify();
+    };
+    window.addEventListener('online', this.onlineListener);
+    window.addEventListener('offline', this.offlineListener);
 
-      if (res.ok) {
-        this.state.lastSyncedAt = Date.now();
-        this.offlineQueue = [];
-        this.saveOfflineQueue();
-      } else {
-        this.offlineQueue.push(payload);
-        this.saveOfflineQueue();
+    this.state.isTracking = true;
+    this.notify();
+
+    this.watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, speed, heading, accuracy } = pos.coords;
+        const newPing: GpsPing = {
+          latitude,
+          longitude,
+          timestamp: pos.timestamp,
+          accuracyMeters: accuracy,
+          speedKmh: speed !== null && speed >= 0 ? Math.round(speed * 3.6) : undefined,
+          heading: heading !== null && heading >= 0 ? heading : undefined,
+        };
+
+        const res = processGpsPingAndAccumulateDistance({
+          previousPing: this.lastPing,
+          newPing,
+          currentTotalDistanceKm: this.state.actualDistanceKm,
+        });
+
+        if (res.isAccepted) {
+          this.state.previousValidPoint = this.lastPing
+            ? { latitude: this.lastPing.latitude, longitude: this.lastPing.longitude }
+            : null;
+          this.lastPing = newPing;
+          this.state.actualDistanceKm = res.newTotalDistanceKm;
+          this.state.remainingDistanceKm = Math.max(
+            0,
+            Math.round((this.state.plannedDistanceKm - res.newTotalDistanceKm) * 10) / 10
+          );
+        }
+
+        this.state.currentPoint = {
+          latitude,
+          longitude,
+          speed,
+          accuracy,
+        };
+        this.state.speedKmh = newPing.speedKmh || 0;
+        this.state.heading = heading ?? null;
+        this.state.breadcrumbs.push({ lat: latitude, lng: longitude, timestamp: pos.timestamp });
+        if (this.state.breadcrumbs.length > 50) this.state.breadcrumbs.shift();
+        this.state.permissionStatus = 'granted';
+
+        this.notify();
+
+        // Requirement 16: Adaptive Sampling Throttling
+        if (res.isAccepted && this.config.tripId) {
+          const currentSpeed = newPing.speedKmh || 0;
+          // Stationary (<3km/h): 10s | Slow (3-15km/h): 5s | Driving (>15km/h): 2.5s
+          const syncIntervalMs = currentSpeed < 3 ? 10000 : currentSpeed < 15 ? 5000 : 2500;
+          const now = Date.now();
+          const timeSinceSync = now - this.lastNetworkSyncTime;
+
+          const pingPayload = {
+            latitude,
+            longitude,
+            accuracyMeters: accuracy,
+            speedKmh: newPing.speedKmh,
+            heading: heading ?? undefined,
+            timestamp: new Date(pos.timestamp).toISOString(),
+          };
+
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            this.queuedPings.push(pingPayload);
+            this.state.queuedPingsCount = this.queuedPings.length;
+            this.notify();
+          } else if (timeSinceSync >= syncIntervalMs || !this.lastNetworkSyncTime) {
+            this.lastNetworkSyncTime = now;
+            this.sendPingToBackend(pingPayload);
+          }
+        }
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          this.state.permissionStatus = 'denied';
+        }
+        this.state.errorMessage = err.message;
+        this.notify();
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 2000,
+        timeout: 10000,
       }
-    } catch (err) {
-      this.offlineQueue.push(payload);
-      this.saveOfflineQueue();
-    } finally {
-      this.isTransmitting = false;
-      this.notifyListeners();
-    }
+    );
   }
 
-  private async flushOfflineQueue() {
-    if (this.offlineQueue.length === 0 || !this.state.isOnline) return;
-    const latestPoint = this.state.currentPoint;
-    if (!latestPoint) return;
-
-    await this.transmitPayload({
-      tripId: this.tripId,
-      driverId: this.driverId,
-      vehicleId: this.vehicleId,
-      latitude: latestPoint.latitude,
-      longitude: latestPoint.longitude,
-      accuracy: latestPoint.accuracy,
-      speedKmh: this.state.speedKmh,
-      heading: latestPoint.heading,
-      timestamp: latestPoint.timestamp,
-      actualDistanceKm: this.state.actualDistanceKm,
-      remainingDistanceKm: this.state.remainingDistanceKm,
-      plannedDistanceKm: this.state.plannedDistanceKm,
-      status: 'IN_TRANSIT',
-    });
-  }
-
-  /**
-   * Stops tracking and cleans up device GPS watchers.
-   */
   public stopTracking() {
     if (this.watchId !== null && typeof navigator !== 'undefined') {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
     }
+    if (this.onlineListener && typeof window !== 'undefined') {
+      window.removeEventListener('online', this.onlineListener);
+      this.onlineListener = null;
+    }
+    if (this.offlineListener && typeof window !== 'undefined') {
+      window.removeEventListener('offline', this.offlineListener);
+      this.offlineListener = null;
+    }
     this.state.isTracking = false;
-    this.notifyListeners();
+    this.notify();
   }
 
   public getState(): TrackingState {

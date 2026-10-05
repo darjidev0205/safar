@@ -24,6 +24,7 @@ import { AccessRequestsPanel } from '../../../components/host/access-requests-pa
 import { useAuth } from '../../../context/auth-context';
 import { StarFlourish, MarigoldFlower } from '../../../components/ui/botanical-ornaments';
 import { SafarBadge, SafarButton, SafarEmptyState } from '../../../components/ui/safar-design-system';
+import { FunctionCard } from '../../../components/host/function-card';
 import Link from 'next/link';
 
 export default function HostEventsPage() {
@@ -252,175 +253,35 @@ export default function HostEventsPage() {
 
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredEvents.map((event) => {
-          const tr = event.transportRequirements;
-          const startDateObj = new Date(event.startDate);
-          const formattedDate = !isNaN(startDateObj.getTime())
-            ? startDateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-            : 'Scheduled';
-
-          const timeString = event.startTime
-            ? `${event.startTime} – ${event.endTime || 'End'}`
-            : 'All Day';
-
-          const badgeVariant = getFunctionBadgeVariant(event.eventType);
-
-          return (
-            <div
-              key={event.id}
-              className="p-6 rounded-3xl bg-white/95 border border-warm-200/90 shadow-2xs hover:shadow-xs hover:border-warm-300 transition-all flex flex-col justify-between"
-            >
-              {/* Card Header */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <SafarBadge variant={badgeVariant as any} size="sm">
-                    {event.eventType || 'FUNCTION'}
-                  </SafarBadge>
-                  <div className="flex items-center gap-1.5 text-xs font-mono text-charcoal-500 bg-warm-50 px-2.5 py-0.5 rounded-full border border-warm-200/80">
-                    <KeyRound className="w-3 h-3 text-gold-600" />
-                    <span>{event.joinCode}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-charcoal-900 tracking-tight">
-                    {event.name}
-                  </h3>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-600 font-sans">
-                    <Calendar className="w-3.5 h-3.5 text-gold-600 shrink-0" />
-                    <span>{formattedDate}</span>
-                    <span>•</span>
-                    <Clock className="w-3.5 h-3.5 text-charcoal-400 shrink-0" />
-                    <span>{timeString}</span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-500 font-sans">
-                    <MapPin className="w-3.5 h-3.5 text-charcoal-400 shrink-0" />
-                    <span className="truncate">{event.venueName || event.city}</span>
-                  </div>
-                </div>
-
-                {/* Key Metrics Strip */}
-                <div className="p-3.5 rounded-2xl bg-warm-50/70 border border-warm-200/80 grid grid-cols-3 gap-2 text-center text-xs font-sans">
-                  <div>
-                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Guests</span>
-                    <span className="font-serif font-bold text-charcoal-900 text-sm">{event.guestCount || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Vehicles</span>
-                    <span className="font-serif font-bold text-charcoal-900 text-sm">
-                      {tr?.numberOfVehicles || 0}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-charcoal-400 uppercase font-semibold block">Trips</span>
-                    <span className="font-serif font-bold text-charcoal-900 text-sm">{event.tripsCount || 0}</span>
-                  </div>
-                </div>
-
-                {/* Transport Status Badge */}
-                <div className="text-xs text-charcoal-600 flex items-center justify-between p-2.5 rounded-xl bg-warm-50/60 border border-warm-100 font-sans">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-terracotta-700" />
-                    <span className="font-medium text-[11px]">
-                      {tr ? `${tr.vehicleType || 'Fleet'} • ${tr.pickupRequired ? 'Pickup' : ''} ${tr.dropRequired ? '& Drop' : ''}` : 'No transport configured'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold text-sage-800 bg-sage-50 px-2.5 py-0.5 rounded-full border border-sage-200">
-                    Active
-                  </span>
-                </div>
-
-                {/* EVENT ACCESS CODES BAR */}
-                <div className="p-3 rounded-2xl bg-[#FCFAF6] border border-[#E8E2D9] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-charcoal-700 uppercase tracking-wider flex items-center gap-1">
-                      <KeyRound className="w-3 h-3 text-terracotta-600" />
-                      Event Access Codes
-                    </span>
-                    <button
-                      onClick={() => {
-                        setAccessCodesEvent(event);
-                        setIsAccessCodesModalOpen(true);
-                      }}
-                      className="text-[10px] font-bold text-terracotta-700 hover:text-terracotta-800 underline"
-                    >
-                      Manage / Regenerate
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
-                    <div
-                      onClick={() => {
-                        setAccessCodesEvent(event);
-                        setIsAccessCodesModalOpen(true);
-                      }}
-                      className="p-1.5 rounded-lg bg-white border border-[#E8E2D9] cursor-pointer hover:border-terracotta-400 transition-colors"
-                      title="Click to view & copy Driver Code"
-                    >
-                      <span className="text-[9px] font-sans font-semibold text-charcoal-400 block">DRIVER</span>
-                      <strong className="text-charcoal-900 text-xs tracking-wider">{event.driverAccessCode || 'DRV---'}</strong>
-                    </div>
-                    <div
-                      onClick={() => {
-                        setAccessCodesEvent(event);
-                        setIsAccessCodesModalOpen(true);
-                      }}
-                      className="p-1.5 rounded-lg bg-white border border-[#E8E2D9] cursor-pointer hover:border-emerald-400 transition-colors"
-                      title="Click to view & copy Guest Code"
-                    >
-                      <span className="text-[9px] font-sans font-semibold text-charcoal-400 block">GUEST</span>
-                      <strong className="text-charcoal-900 text-xs tracking-wider">{event.guestAccessCode || event.joinCode || 'GST---'}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-5 pt-3.5 border-t border-warm-100 space-y-2.5 font-sans">
-                <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    href={`/host/guests?eventId=${event.id}`}
-                    className="px-3 py-2 rounded-full bg-warm-50 hover:bg-warm-100 text-charcoal-800 text-xs font-bold text-center border border-warm-300 flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Users className="w-3.5 h-3.5 text-terracotta-600" />
-                    <span>Guests ({event.guestCount || 0})</span>
-                  </Link>
-
-                  <button
-                    onClick={() => {
-                      setEditingEvent(event);
-                      setIsEditModalOpen(true);
-                    }}
-                    className="px-3 py-2 rounded-full bg-white hover:bg-warm-50 text-charcoal-700 text-xs font-semibold text-center border border-warm-200 flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Edit Ceremony</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    onClick={() => handleDuplicate(event)}
-                    className="text-[11px] font-semibold text-charcoal-500 hover:text-charcoal-800 flex items-center gap-1"
-                    title="Duplicate this ceremony"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>Duplicate</span>
-                  </button>
-
-                  <button
-                    onClick={() => setDeletingEvent(event)}
-                    className="text-[11px] font-semibold text-burgundy-600 hover:text-burgundy-800 flex items-center gap-1"
-                    title="Delete function"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {filteredEvents.map((event) => (
+          <FunctionCard
+            key={event.id}
+            event={{
+              id: event.id,
+              name: event.name,
+              eventType: event.eventType,
+              joinCode: event.joinCode,
+              venueName: event.venueName,
+              city: event.city,
+              startDate: event.startDate,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              guestCount: event.guestCount || 0,
+              transportRequirements: event.transportRequirements,
+            }}
+            onEdit={(ev) => {
+              setEditingEvent(event);
+              setIsEditModalOpen(true);
+            }}
+            onAccessCodes={(ev) => {
+              setAccessCodesEvent(event);
+              setIsAccessCodesModalOpen(true);
+            }}
+            onDelete={(ev) => {
+              setDeletingEvent(event);
+            }}
+          />
+        ))}
       </div>
       </>
       )}

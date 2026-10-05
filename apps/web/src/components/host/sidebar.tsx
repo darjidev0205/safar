@@ -15,11 +15,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { SafarLogo } from '../ui/safar-logo';
-import { StarFlourish, OliveBranch } from '../ui/botanical-ornaments';
+import { StarFlourish } from '../ui/botanical-ornaments';
 
 interface SidebarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
+  className?: string;
 }
 
 const MENU_GROUPS = [
@@ -50,16 +51,18 @@ const MENU_GROUPS = [
   },
 ];
 
-export function HostSidebar({ currentTab, onTabChange }: SidebarProps) {
+export function HostSidebar({ currentTab, onTabChange, className = '' }: SidebarProps) {
   return (
-    <aside className="w-64 border-r border-warm-200/80 bg-warm-50/90 paper-texture flex flex-col shrink-0 min-h-screen">
+    <aside
+      className={`w-64 border-r border-warm-200/80 bg-warm-50/90 paper-texture flex flex-col shrink-0 h-screen sticky top-0 font-sans select-none ${className}`}
+    >
       {/* Brand Header */}
-      <div className="p-5 border-b border-warm-200/80 flex items-center justify-between">
+      <div className="h-16 px-5 border-b border-warm-200/80 flex items-center justify-between bg-warm-50/80 backdrop-blur-md">
         <SafarLogo size="md" />
         <StarFlourish className="w-3 h-3 text-gold-600/70" />
       </div>
 
-      {/* Nav Menu */}
+      {/* Nav Menu Items */}
       <nav className="p-3.5 space-y-5 flex-1 overflow-y-auto">
         {MENU_GROUPS.map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-1">
@@ -75,10 +78,10 @@ export function HostSidebar({ currentTab, onTabChange }: SidebarProps) {
                   <button
                     key={item.id}
                     onClick={() => onTabChange(item.id)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all select-none ${
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                       isActive
                         ? 'bg-white text-charcoal-900 border border-warm-300/80 shadow-2xs font-bold'
-                        : 'text-charcoal-600 hover:text-charcoal-900 hover:bg-warm-100/70'
+                        : 'text-charcoal-600 hover:text-charcoal-900 hover:bg-warm-100/70 border border-transparent'
                     }`}
                   >
                     <Icon
@@ -98,8 +101,8 @@ export function HostSidebar({ currentTab, onTabChange }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Bottom Hospitality badge */}
-      <div className="p-4 border-t border-warm-200/80 bg-white/60 m-3 rounded-2xl border text-xs text-charcoal-600">
+      {/* Bottom Hospitality Badge */}
+      <div className="p-3.5 border-t border-warm-200/80 bg-white/70 m-3 rounded-2xl border border-warm-200/90 text-xs shadow-2xs">
         <div className="flex items-center gap-1.5 font-serif font-bold text-charcoal-900">
           <Sparkles className="w-3.5 h-3.5 text-gold-600" />
           <span>Wedding Mobility Suite</span>

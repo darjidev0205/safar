@@ -1,13 +1,27 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Navigation, MapPin, Compass, ExternalLink, WifiOff, AlertTriangle } from 'lucide-react';
+import {
+  Navigation,
+  MapPin,
+  Compass,
+  ExternalLink,
+  WifiOff,
+  AlertTriangle,
+  LocateFixed,
+  Clock,
+  RefreshCw,
+} from 'lucide-react';
 import { loadGoogleMaps, getGoogleMapsApiKey } from '../../lib/google-maps';
+import {
+  LatLng,
+  calculateRoute,
+  shouldRecalculateRoute,
+  RouteResult,
+} from '../../lib/location-service';
+import { AnimatedDriverMarker } from '../../lib/marker-animator';
 
-export interface LatLng {
-  lat: number;
-  lng: number;
-}
+export { type LatLng };
 
 interface GoogleMapViewProps {
   /** Optional live driver/vehicle position */
@@ -23,7 +37,9 @@ interface GoogleMapViewProps {
   vehicleModel?: string;
   /** Show the live GPS telemetry pill */
   isLiveTracking?: boolean;
-  /** Whether to request and render a driving route via DirectionsService */
+  /** Timestamp of the last received driver GPS ping */
+  lastPingAt?: string | number | Date;
+  /** Whether to request and render a driving route */
   showRoute?: boolean;
   /** Real GPS breadcrumb path driven by vehicle */
   breadcrumbs?: LatLng[];
@@ -31,7 +47,7 @@ interface GoogleMapViewProps {
   className?: string;
 }
 
-/** SAFAR warm map style — matches the brand color palette */
+/** SAFAR warm map style — matches the luxury Indian wedding brand aesthetic */
 const SAFAR_MAP_STYLES = [
   { featureType: 'all', elementType: 'geometry', stylers: [{ color: '#fbf9f4' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#e5ecf0' }] },
@@ -53,19 +69,44 @@ export function GoogleMapView({
   driverHeading = 0,
   vehicleModel = 'Vehicle',
   isLiveTracking = false,
+  lastPingAt,
   showRoute = true,
   breadcrumbs = [],
   className = 'w-full h-full min-h-[260px] sm:min-h-[340px]',
 }: GoogleMapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const driverMarkerRef = useRef<any>(null);
-  const directionsRendererRef = useRef<any>(null);
+  const driverAnimatorRef = useRef<AnimatedDriverMarker | null>(null);
+  const routePolylineRef = useRef<any>(null);
   const breadcrumbsPolylineRef = useRef<any>(null);
 
+  // Smart route refresh tracking
+  const lastRouteCalculationRef = useRef<{
+    position: LatLng;
+    timeMs: number;
+  } | null>(null);
+
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'no-key'>('loading');
+  const [routeInfo, setRouteInfo] = useState<RouteResult | null>(null);
 
   const apiKey = getGoogleMapsApiKey();
+
+  // Stale location detection (Requirement 25: >120s old)
+  const isStale = (() => {
+    if (!lastPingAt) return false;
+    const pingTime = new Date(lastPingAt).getTime();
+    if (isNaN(pingTime)) return false;
+    const diffSeconds = (Date.now() - pingTime) / 1000;
+    return diffSeconds > 120;
+  })();
+
+  const staleTimeAgo = (() => {
+    if (!lastPingAt) return '';
+    const pingTime = new Date(lastPingAt).getTime();
+    if (isNaN(pingTime)) return '';
+    const minutes = Math.max(1, Math.round((Date.now() - pingTime) / 60000));
+    return `${minutes} min ago`;
+  })();
 
   // External Google Maps directions URL for "Navigate" button
   const currentOrigin = driverLocation ?? pickupLocation;
@@ -75,39 +116,69 @@ export function GoogleMapView({
     `${destinationLocation.lat},${destinationLocation.lng}`
   )}&travelmode=driving`;
 
-  /** Create or update driver marker */
-  const upsertDriverMarker = useCallback(
-    (map: any, goog: any, location: LatLng) => {
+  /** Fit bounds to show all active markers */
+  const fitMapBounds = useCallback(() => {
+    if (!mapInstanceRef.current) return;
+    const goog = (window as any).google;
+    if (!goog?.maps?.LatLngBounds) return;
+
+    const bounds = new goog.maps.LatLngBounds();
+    bounds.extend({ lat: pickupLocation.lat, lng: pickupLocation.lng });
+    bounds.extend({ lat: destinationLocation.lat, lng: destinationLocation.lng });
+    if (driverLocation) {
+      bounds.extend({ lat: driverLocation.lat, lng: driverLocation.lng });
+    }
+    mapInstanceRef.current.fitBounds(bounds, 50);
+  }, [pickupLocation, destinationLocation, driverLocation]);
+
+  /** Draw or update route polyline using smart cached RouteResult */
+  const updateRoute = useCallback(
+    async (origin: LatLng, dest: LatLng, forceRefresh = false) => {
+      if (!mapInstanceRef.current || !showRoute) return;
+      const goog = (window as any).google;
+
+      const shouldUpdate =
+        forceRefresh ||
+        !lastRouteCalculationRef.current ||
+        shouldRecalculateRoute({
+          lastCalculatedPosition: lastRouteCalculationRef.current.position,
+          currentPosition: origin,
+          lastCalculationTimeMs: lastRouteCalculationRef.current.timeMs,
+          displacementThresholdMeters: 250,
+          timeIntervalSeconds: 60,
+        });
+
+      if (!shouldUpdate) return;
+
       try {
-        const icon = {
-          path: goog.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-          scale: 7,
-          rotation: driverHeading,
-          fillColor: '#0f172a',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2,
+        const routeData = await calculateRoute(origin, dest);
+        setRouteInfo(routeData);
+        lastRouteCalculationRef.current = {
+          position: origin,
+          timeMs: Date.now(),
         };
-        if (driverMarkerRef.current) {
-          driverMarkerRef.current.setPosition(location);
-          driverMarkerRef.current.setIcon(icon);
-        } else {
-          driverMarkerRef.current = new goog.maps.Marker({
-            position: location,
-            map,
-            title: vehicleModel,
-            icon,
-            zIndex: 10,
-          });
+
+        if (routePolylineRef.current) {
+          routePolylineRef.current.setMap(null);
         }
-      } catch (e) {
-        console.warn('Driver marker update notice:', e);
+
+        routePolylineRef.current = new goog.maps.Polyline({
+          path: routeData.polylinePath,
+          geodesic: true,
+          strokeColor: '#C86D51',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+          map: mapInstanceRef.current,
+          zIndex: 6,
+        });
+      } catch (err) {
+        console.warn('Smart route update note:', err);
       }
     },
-    [driverHeading, vehicleModel]
+    [showRoute]
   );
 
-  /** Initialize real Google Map */
+  /** Initialize Google Map */
   const initMap = useCallback(async () => {
     if (!mapContainerRef.current) return;
     const goog = (window as any).google;
@@ -127,25 +198,25 @@ export function GoogleMapView({
       });
       mapInstanceRef.current = map;
 
-      // Pickup marker (gold circle)
+      // Pickup marker (gold circle with white center)
       new goog.maps.Marker({
-        position: pickupLocation,
+        position: { lat: pickupLocation.lat, lng: pickupLocation.lng },
         map,
         title: pickupName,
         icon: {
           path: goog.maps.SymbolPath.CIRCLE,
-          scale: 9,
+          scale: 8,
           fillColor: '#C49E64',
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 2.5,
         },
-        zIndex: 5,
+        zIndex: 10,
       });
 
-      // Destination marker (terracotta arrow)
+      // Destination marker (terracotta pin)
       new goog.maps.Marker({
-        position: destinationLocation,
+        position: { lat: destinationLocation.lat, lng: destinationLocation.lng },
         map,
         title: destinationName,
         icon: {
@@ -156,59 +227,41 @@ export function GoogleMapView({
           strokeColor: '#ffffff',
           strokeWeight: 2.5,
         },
-        zIndex: 5,
+        zIndex: 10,
       });
 
-      // Driver marker
-      if (driverLocation) {
-        upsertDriverMarker(map, goog, driverLocation);
+      // Live driver marker with Smooth Animator
+      driverAnimatorRef.current = new AnimatedDriverMarker({
+        map,
+        initialPosition: driverLocation || null,
+        initialHeading: driverHeading,
+        vehicleTitle: vehicleModel,
+        iconColor: '#0f172a',
+      });
+
+      // Initial route calculation
+      if (showRoute) {
+        const routeOrigin = driverLocation ?? pickupLocation;
+        await updateRoute(routeOrigin, destinationLocation, true);
       }
 
-      // Route via DirectionsService
-      if (showRoute && goog.maps.DirectionsService) {
-        const directionsService = new goog.maps.DirectionsService();
-        const renderer = new goog.maps.DirectionsRenderer({
-          suppressMarkers: true,
-          polylineOptions: {
-            strokeColor: '#C86D51',
-            strokeOpacity: 0.85,
-            strokeWeight: 4,
-          },
-        });
-        renderer.setMap(map);
-        directionsRendererRef.current = renderer;
-
-        directionsService.route(
-          {
-            origin: pickupLocation,
-            destination: destinationLocation,
-            travelMode: goog.maps.TravelMode.DRIVING,
-          },
-          (result: any, status: string) => {
-            if (status === 'OK' && result) {
-              renderer.setDirections(result);
-            } else {
-              // Fit bounds manually when directions API returns non-OK
-              const bounds = new goog.maps.LatLngBounds();
-              bounds.extend(pickupLocation);
-              bounds.extend(destinationLocation);
-              if (driverLocation) bounds.extend(driverLocation);
-              map.fitBounds(bounds, 60);
-            }
-          }
-        );
-      } else {
-        const bounds = new goog.maps.LatLngBounds();
-        bounds.extend(pickupLocation);
-        bounds.extend(destinationLocation);
-        if (driverLocation) bounds.extend(driverLocation);
-        map.fitBounds(bounds, 60);
-      }
-    } catch (mapErr) {
-      console.error('Error initializing map:', mapErr);
-      throw mapErr;
+      fitMapBounds();
+    } catch (err) {
+      console.error('Error initializing map:', err);
+      throw err;
     }
-  }, [pickupLocation, destinationLocation, driverLocation, pickupName, destinationName, showRoute, upsertDriverMarker]);
+  }, [
+    pickupLocation,
+    destinationLocation,
+    driverLocation,
+    pickupName,
+    destinationName,
+    driverHeading,
+    vehicleModel,
+    showRoute,
+    updateRoute,
+    fitMapBounds,
+  ]);
 
   // Boot: load SDK then init map
   useEffect(() => {
@@ -218,6 +271,7 @@ export function GoogleMapView({
     }
     setLoadState('loading');
     let isCancelled = false;
+
     loadGoogleMaps()
       .then(() => {
         if (!isCancelled) {
@@ -231,22 +285,39 @@ export function GoogleMapView({
         }
       })
       .catch((err) => {
-        console.warn('Google Maps SDK load warning:', err);
+        console.warn('Google Maps SDK load error:', err);
         if (!isCancelled) setLoadState('error');
       });
 
     return () => {
       isCancelled = true;
+      if (driverAnimatorRef.current) {
+        driverAnimatorRef.current.destroy();
+        driverAnimatorRef.current = null;
+      }
+      if (routePolylineRef.current) {
+        routePolylineRef.current.setMap(null);
+      }
+      if (breadcrumbsPolylineRef.current) {
+        breadcrumbsPolylineRef.current.setMap(null);
+      }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update driver marker when its prop changes (no full reinit)
+  // Smoothly glide driver marker on GPS updates (Requirement 8)
   useEffect(() => {
-    if (loadState !== 'ready' || !mapInstanceRef.current || !driverLocation) return;
-    const goog = (window as any).google;
-    upsertDriverMarker(mapInstanceRef.current, goog, driverLocation);
-  }, [driverLocation, loadState, upsertDriverMarker]);
+    if (loadState !== 'ready' || !driverAnimatorRef.current || !driverLocation) return;
+
+    driverAnimatorRef.current.moveTo(driverLocation, driverHeading, {
+      durationMs: 2000,
+    });
+
+    // Check smart route refresh
+    if (showRoute) {
+      updateRoute(driverLocation, destinationLocation, false);
+    }
+  }, [driverLocation, driverHeading, loadState, destinationLocation, showRoute, updateRoute]);
 
   // Update real GPS breadcrumb polyline
   useEffect(() => {
@@ -270,8 +341,8 @@ export function GoogleMapView({
         path: pathCoords,
         geodesic: true,
         strokeColor: '#087F76',
-        strokeOpacity: 0.9,
-        strokeWeight: 4,
+        strokeOpacity: 0.85,
+        strokeWeight: 3.5,
         map: mapInstanceRef.current,
         zIndex: 8,
       });
@@ -290,7 +361,7 @@ export function GoogleMapView({
         }`}
       />
 
-      {/* Loading state — show stylised fallback canvas */}
+      {/* Loading state — stylised fallback canvas */}
       {loadState === 'loading' && (
         <div className="w-full h-full absolute inset-0">
           <FallbackCanvas
@@ -299,14 +370,16 @@ export function GoogleMapView({
             driverLocation={driverLocation}
             driverHeading={driverHeading}
           />
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-[#E5DACB] shadow-xs">
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-sm border border-[#E5DACB] shadow-xs">
             <div className="w-2 h-2 rounded-full bg-terracotta-500 animate-pulse" />
-            <span className="text-[10px] font-semibold text-charcoal-700 uppercase tracking-wider">Loading Map…</span>
+            <span className="text-[10px] font-semibold text-charcoal-700 uppercase tracking-wider">
+              Loading Google Maps…
+            </span>
           </div>
         </div>
       )}
 
-      {/* No API key */}
+      {/* No API key configured */}
       {loadState === 'no-key' && (
         <div className="w-full h-full absolute inset-0">
           <FallbackCanvas
@@ -317,8 +390,8 @@ export function GoogleMapView({
           />
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-warm-50/70 backdrop-blur-sm p-4 text-center">
             <AlertTriangle className="w-6 h-6 text-amber-600" />
-            <p className="text-xs font-semibold text-charcoal-700 max-w-[200px]">
-              Map API key not configured.
+            <p className="text-xs font-semibold text-charcoal-700 max-w-[220px]">
+              Google Maps API key not configured.
             </p>
           </div>
         </div>
@@ -335,13 +408,13 @@ export function GoogleMapView({
           />
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-warm-50/70 backdrop-blur-sm p-4 text-center">
             <WifiOff className="w-6 h-6 text-charcoal-500" />
-            <p className="text-xs font-semibold text-charcoal-700 max-w-[200px]">
+            <p className="text-xs font-semibold text-charcoal-700 max-w-[220px]">
               Map unavailable.{' '}
               <a
                 href={googleMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-terracotta-600 underline"
+                className="text-terracotta-600 underline font-semibold"
               >
                 Open in Google Maps
               </a>
@@ -350,14 +423,27 @@ export function GoogleMapView({
         </div>
       )}
 
-      {/* Floating Navigate button */}
-      <div className="absolute top-3 right-3 z-10">
+      {/* Floating Controls Bar (Top Right) */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+        {/* Recenter button */}
+        {loadState === 'ready' && (
+          <button
+            type="button"
+            onClick={fitMapBounds}
+            className="p-2 rounded-full bg-white/90 backdrop-blur-sm text-charcoal-700 hover:text-terracotta-700 shadow-xs border border-[#E5DACB] active:scale-95 transition-all"
+            title="Recenter Map View"
+          >
+            <LocateFixed className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* External Google Maps directions */}
         <a
           href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-sm text-[11px] font-semibold text-charcoal-800 hover:text-terracotta-700 shadow-xs flex items-center gap-1.5 active:scale-95 transition-all border border-[#E5DACB]"
-          title="Open in Google Maps"
+          className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-[11px] font-semibold text-charcoal-800 hover:text-terracotta-700 shadow-xs flex items-center gap-1.5 active:scale-95 transition-all border border-[#E5DACB]"
+          title="Open in Google Maps App"
         >
           <Compass className="w-3.5 h-3.5 text-terracotta-600" />
           <span>Navigate</span>
@@ -365,14 +451,39 @@ export function GoogleMapView({
         </a>
       </div>
 
-      {/* Live GPS pill */}
-      {isLiveTracking && loadState === 'ready' && (
-        <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 backdrop-blur-sm border border-[#E5DACB] shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 -ml-2.5" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-800">GPS Live</span>
-        </div>
-      )}
+      {/* Bottom Floating Telemetry & Status Badges */}
+      <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
+        {/* Left: GPS Live or Stale Status */}
+        {isLiveTracking && loadState === 'ready' && (
+          <div className="pointer-events-auto">
+            {isStale ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50/95 backdrop-blur-sm border border-amber-300 text-amber-800 shadow-xs">
+                <Clock className="w-3 h-3 text-amber-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  Driver location updating… ({staleTimeAgo})
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5DACB] shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 -ml-2.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-800">
+                  Live GPS
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right: Route Distance / ETA Pill */}
+        {routeInfo && (
+          <div className="pointer-events-auto ml-auto px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5DACB] shadow-xs flex items-center gap-2 text-[11px] font-semibold text-charcoal-800">
+            <span>{routeInfo.distanceText}</span>
+            <span className="text-charcoal-300">&bull;</span>
+            <span className="text-terracotta-700 font-bold">{routeInfo.durationText}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -408,7 +519,7 @@ function FallbackCanvas({
 
       {/* Pickup pin */}
       <div className="absolute left-[15%] bottom-[20%] flex flex-col items-center -translate-x-1/2">
-        <div className="w-8 h-8 rounded-full bg-gold-500 border-2 border-white shadow-md flex items-center justify-center animate-pulse">
+        <div className="w-8 h-8 rounded-full bg-[#C49E64] border-2 border-white shadow-md flex items-center justify-center animate-pulse">
           <div className="w-2.5 h-2.5 rounded-full bg-white" />
         </div>
         <div className="mt-1 px-2 py-0.5 rounded-md bg-white/90 text-[10px] font-bold text-charcoal-800 shadow-2xs border border-[#E5DACB] max-w-[120px] truncate text-center">
@@ -418,7 +529,7 @@ function FallbackCanvas({
 
       {/* Destination pin */}
       <div className="absolute right-[18%] top-[14%] flex flex-col items-center translate-x-1/2">
-        <div className="w-9 h-9 rounded-full bg-terracotta-500 border-2 border-white shadow-md flex items-center justify-center">
+        <div className="w-9 h-9 rounded-full bg-[#C86D51] border-2 border-white shadow-md flex items-center justify-center">
           <MapPin className="w-4 h-4 text-white" />
         </div>
         <div className="mt-1 px-2 py-0.5 rounded-md bg-white/90 text-[10px] font-bold text-charcoal-800 shadow-2xs border border-[#E5DACB] max-w-[140px] truncate text-center">

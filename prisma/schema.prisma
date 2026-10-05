@@ -177,7 +177,7 @@ model Event {
   venueLatitude       Float?
   venueLongitude      Float?
   expectedGuestCount  Int         @default(0)
-  joinCode            String      @unique
+  joinCode            String      @unique // Master Event Code (e.g. JPR26A)
   driverAccessCode    String?     @unique
   guestAccessCode     String?     @unique
   bannerUrl           String?
@@ -196,12 +196,15 @@ model Event {
   accessRequests        EventAccessRequest[]
   functions             Function[]
   places                Place[]
+  families              Family[]
   guests                Guest[]
+  drivers               Driver[]
   trips                 Trip[]
   bookings              Booking[]
   auditLogs             AuditLog[]
   transportRequirements EventTransportRequirement[]
   eventGuests           EventGuest[]
+  driverEvents          DriverEvent[]
 
   @@index([accountId])
   @@index([parentEventId])
@@ -285,21 +288,55 @@ model Place {
 }
 
 model Function {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  eventId   String   @db.ObjectId
-  placeId   String   @db.ObjectId
-  name      String
-  startTime DateTime
-  endTime   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId            String    @db.ObjectId
+  placeId            String?   @db.ObjectId
+  name               String
+  type               String    @default("CUSTOM")
+  date               DateTime?
+  startTime          DateTime
+  endTime            DateTime
+  venueName          String?
+  venueAddress       String?
+  latitude           Float?
+  longitude          Float?
+  guestRules         String?
+  transportRules     String?
+  description        String?
+  status             String    @default("ACTIVE")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  event              Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  place              Place?    @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  trips              Trip[]
+  attendances        GuestFunctionAttendance[]
 
   @@index([eventId])
   @@index([placeId])
+  @@index([status])
   @@map("functions")
+}
+
+model GuestFunctionAttendance {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  guestId     String   @db.ObjectId
+  functionId  String   @db.ObjectId
+  isAttending Boolean  @default(true)
+  status      String   @default("ASSIGNED")
+  notes       String?
+  assignedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  guest       Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  function    Function @relation(fields: [functionId], references: [id], onDelete: Cascade)
+
+  @@unique([guestId, functionId])
+  @@index([guestId])
+  @@index([functionId])
+  @@index([status])
+  @@map("guest_function_attendance")
 }
 
 model GuestGroup {
@@ -337,6 +374,7 @@ model EventTransportRequirement {
 model Family {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   accountId String   @db.ObjectId
+  eventId   String?  @db.ObjectId
   name      String
   relation  String?
   notes     String?
@@ -344,9 +382,12 @@ model Family {
   updatedAt DateTime @updatedAt
 
   account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   guests    Guest[]
+  trips     Trip[]
 
   @@index([accountId])
+  @@index([eventId])
   @@map("families")
 }
 
@@ -364,9 +405,11 @@ model Guest {
   email               String?
   memberCount         Int          @default(1)
   category            String?
+  hotelName           String?
+  hotelRoom           String?
   pickupLocation      String?
   dropLocation        String?
-  hotelRoom           String?
+  transportationRequired Boolean   @default(true)
   specialRequirements String?
   status              String       @default("CONFIRMED")
   notes               String?
@@ -380,6 +423,8 @@ model Guest {
   family              Family?      @relation(fields: [familyId], references: [id], onDelete: SetNull)
   bookings            Booking[]
   eventGuests         EventGuest[]
+  attendances         GuestFunctionAttendance[]
+  trips               Trip[]
 
   @@index([eventId])
   @@index([accountId])
@@ -453,6 +498,7 @@ model Driver {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   accountId      String       @db.ObjectId
   userId         String       @db.ObjectId
+  eventId        String?      @db.ObjectId
   currentVehicleId String?    @db.ObjectId
   licenseNumber    String
   licenseExpiry    String?
@@ -467,16 +513,42 @@ model Driver {
 
   account        Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event          Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
   currentVehicle Vehicle?         @relation(fields: [currentVehicleId], references: [id], onDelete: SetNull)
   documents      DriverDocument[]
   duties         Duty[]
   tripAssignments TripAssignment[]
   locationPings  LocationPing[]
   trips          Trip[]
+  driverEvents   DriverEvent[]
 
   @@unique([userId])
   @@index([accountId])
+  @@index([eventId])
   @@map("drivers")
+}
+
+model DriverEvent {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  driverId    String    @db.ObjectId
+  eventId     String    @db.ObjectId
+  status      String    @default("PENDING")
+  requestedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  approvedBy  String?   @db.ObjectId
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  driver      Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, eventId])
+  @@index([driverId])
+  @@index([eventId])
+  @@index([status])
+  @@map("driver_events")
 }
 
 model DriverDocument {
@@ -513,10 +585,20 @@ model Duty {
 model Trip {
   id                   String     @id @default(auto()) @map("_id") @db.ObjectId
   eventId              String     @db.ObjectId
+  functionId           String?    @db.ObjectId
+  familyId             String?    @db.ObjectId
+  guestId              String?    @db.ObjectId
   driverId             String?    @db.ObjectId
   vehicleId            String?    @db.ObjectId
-  originPlaceId        String     @db.ObjectId
-  destinationPlaceId   String     @db.ObjectId
+  originPlaceId        String?    @db.ObjectId
+  destinationPlaceId   String?    @db.ObjectId
+  pickupLocation       String?
+  pickupLatitude       Float?
+  pickupLongitude      Float?
+  destination          String?
+  destinationLatitude  Float?
+  destinationLongitude Float?
+  passengerCount       Int        @default(1)
   scheduledPickupTime  DateTime
   estimatedArrivalTime DateTime?
   actualStartTime      DateTime?
@@ -525,6 +607,10 @@ model Trip {
   plannedDistanceKm    Float?
   actualDistanceKm     Float?     @default(0)
   remainingDistanceKm  Float?
+  estimatedDistanceKm  Float?
+  estimatedCost        Float?
+  actualCost           Float?
+  boardingCode         String?
   currentLat           Float?
   currentLng           Float?
   currentSpeed         Float?
@@ -534,16 +620,22 @@ model Trip {
   updatedAt            DateTime   @updatedAt
 
   event            Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  function         Function?        @relation(fields: [functionId], references: [id], onDelete: SetNull)
+  family           Family?          @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  guest            Guest?           @relation(fields: [guestId], references: [id], onDelete: SetNull)
   driver           Driver?          @relation(fields: [driverId], references: [id], onDelete: SetNull)
   vehicle          Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  originPlace      Place            @relation("TripOrigin", fields: [originPlaceId], references: [id])
-  destinationPlace Place            @relation("TripDestination", fields: [destinationPlaceId], references: [id])
+  originPlace      Place?           @relation("TripOrigin", fields: [originPlaceId], references: [id])
+  destinationPlace Place?           @relation("TripDestination", fields: [destinationPlaceId], references: [id])
   assignments      TripAssignment[]
   bookings         Booking[]
   locationPings    LocationPing[]
   tripEvents       TripEvent[]
 
   @@index([eventId])
+  @@index([functionId])
+  @@index([familyId])
+  @@index([guestId])
   @@index([driverId])
   @@index([vehicleId])
   @@index([status])

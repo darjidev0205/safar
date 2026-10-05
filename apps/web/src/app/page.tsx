@@ -196,7 +196,7 @@ export default function LandingPage() {
     if (authStatus === 'AUTHENTICATED') {
       router.push(getRoleDashboard(role));
     } else {
-      openAuthWithRole(UserRole.EVENT_ORGANIZER);
+      router.push('/signup');
     }
   };
 
@@ -205,6 +205,8 @@ export default function LandingPage() {
     const target = document.getElementById(targetId);
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.location.hash = `#${targetId}`;
     }
   };
 
@@ -294,13 +296,13 @@ export default function LandingPage() {
 
               {/* Responsive CTA Buttons (48px min touch target on mobile) */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-                <button
-                  onClick={handleHeroPrimaryClick}
+                <Link
+                  href={authStatus === 'AUTHENTICATED' ? getRoleDashboard(role) : '/signup'}
                   className="w-full sm:w-auto min-h-[48px] px-7 py-3.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white text-xs font-bold uppercase tracking-[0.14em] shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 group active:scale-[0.985] cursor-pointer"
                 >
                   <span>Begin Your Journey</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </button>
+                </Link>
 
                 <a
                   href="#events"

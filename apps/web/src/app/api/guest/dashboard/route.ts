@@ -105,19 +105,23 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+        attendances: {
+          include: {
+            function: true,
+          },
+        },
       },
     });
 
-    // 2. Resolve the Event
+    // 2. Resolve the Single Master Wedding Event
     let eventRecord: any = null;
 
     if (eventCodeParam) {
       eventRecord = await prisma.event.findUnique({
         where: { joinCode: eventCodeParam },
         include: {
-          subEvents: {
-            orderBy: { startDate: 'asc' },
-          },
+          functions: { orderBy: { startTime: 'asc' } },
+          subEvents: { orderBy: { startDate: 'asc' } },
           places: true,
           transportRequirements: true,
         },
@@ -128,22 +132,22 @@ export async function GET(req: NextRequest) {
       eventRecord = await prisma.event.findUnique({
         where: { id: guestRecord.eventId },
         include: {
-          subEvents: {
-            orderBy: { startDate: 'asc' },
-          },
+          functions: { orderBy: { startTime: 'asc' } },
+          subEvents: { orderBy: { startDate: 'asc' } },
           places: true,
           transportRequirements: true,
         },
       });
     }
 
-    // Fallback: check if user is an event member or creator
+    // Fallback: check if user is an event member
     if (!eventRecord) {
       const membership = await prisma.eventMember.findFirst({
         where: { userId: user.id },
         include: {
           event: {
             include: {
+              functions: { orderBy: { startTime: 'asc' } },
               subEvents: { orderBy: { startDate: 'asc' } },
               places: true,
               transportRequirements: true,
@@ -156,13 +160,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fallback for organizers previewing guest view: find their active event
+    // Fallback for organizers previewing guest view: find their active master event
     if (!eventRecord) {
       eventRecord = await prisma.event.findFirst({
         where: {
           OR: [{ creatorId: user.id }, { status: 'ACTIVE' }],
         },
         include: {
+          functions: { orderBy: { startTime: 'asc' } },
           subEvents: { orderBy: { startDate: 'asc' } },
           places: true,
           transportRequirements: true,
@@ -187,35 +192,47 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 3. Resolve Functions / Ceremonies
+    // 3. Resolve Child Functions under the Master Event
+    let rawFunctions: any[] = [];
+    if (eventRecord.functions && eventRecord.functions.length > 0) {
+      rawFunctions = eventRecord.functions;
+    } else if (eventRecord.subEvents && eventRecord.subEvents.length > 0) {
+      rawFunctions = eventRecord.subEvents;
+    }
+
     const functionsList =
-      eventRecord.subEvents && eventRecord.subEvents.length > 0
-        ? eventRecord.subEvents.map((sub: any) => ({
-            id: sub.id,
-            name: sub.name,
-            eventType: sub.eventType || 'CEREMONY',
-            date: sub.startDate.toISOString(),
-            startTime: sub.startTime || '18:00',
-            endTime: sub.endTime || '23:00',
-            venueName: sub.venueName || eventRecord.venueName || 'Celebration Hall',
-            venueAddress: sub.venueAddress || eventRecord.venueAddress || eventRecord.city,
-            venueLatitude: sub.venueLatitude || eventRecord.venueLatitude,
-            venueLongitude: sub.venueLongitude || eventRecord.venueLongitude,
-            expectedGuestCount: sub.expectedGuestCount,
-          }))
+      rawFunctions.length > 0
+        ? rawFunctions.map((fn: any) => {
+            const att = guestRecord?.attendances?.find((a) => a.functionId === fn.id);
+            return {
+              id: fn.id,
+              name: fn.name,
+              eventType: fn.eventType || 'CEREMONY',
+              date: fn.date ? fn.date.toISOString() : (fn.startDate?.toISOString() || fn.startTime?.toISOString()),
+              startTime: fn.startTime ? new Date(fn.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '18:00',
+              endTime: fn.endTime ? new Date(fn.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '23:00',
+              venueName: fn.venueName || eventRecord.venueName || 'Celebration Hall',
+              venueAddress: fn.venueAddress || eventRecord.venueAddress || eventRecord.city,
+              guestRules: fn.guestRules || null,
+              transportRules: fn.transportRules || null,
+              description: fn.description || null,
+              isAttending: att ? att.isAttending : true, // Default attending
+            };
+          })
         : [
             {
               id: `${eventRecord.id}_main`,
-              name: eventRecord.name,
+              name: 'Wedding Ceremony & Reception',
               eventType: eventRecord.eventType || 'WEDDING',
               date: eventRecord.startDate.toISOString(),
               startTime: eventRecord.startTime || '18:00',
               endTime: eventRecord.endTime || '23:00',
               venueName: eventRecord.venueName || 'Grand Palace Banquets',
               venueAddress: eventRecord.venueAddress || eventRecord.city,
-              venueLatitude: eventRecord.venueLatitude,
-              venueLongitude: eventRecord.venueLongitude,
-              expectedGuestCount: eventRecord.expectedGuestCount,
+              guestRules: null,
+              transportRules: null,
+              description: eventRecord.description || null,
+              isAttending: true,
             },
           ];
 
@@ -228,8 +245,7 @@ export async function GET(req: NextRequest) {
       sortedFunctions.find((fn) => new Date(fn.date).getTime() >= now.getTime() - 24 * 3600 * 1000) ||
       sortedFunctions[0];
 
-    // 4. Resolve Guest Transport / Trip
-    // Strictly search for trip assigned to THIS guest's booking
+    // 4. Resolve Guest / Family Transport (Trip / Ride)
     let activeTrip: any = null;
     if (guestRecord) {
       activeTrip = await prisma.trip.findFirst({
@@ -238,19 +254,19 @@ export async function GET(req: NextRequest) {
           status: {
             in: ['IN_TRANSIT', 'EN_ROUTE_TO_PICKUP', 'ARRIVED', 'SCHEDULED', 'ASSIGNED', 'BOARDING'],
           },
-          bookings: {
-            some: { guestId: guestRecord.id },
-          },
+          OR: [
+            { guestId: guestRecord.id },
+            ...(guestRecord.familyId ? [{ familyId: guestRecord.familyId }] : []),
+            { bookings: { some: { guestId: guestRecord.id } } },
+          ],
         },
         include: {
+          function: true,
           vehicle: true,
           driver: { include: { user: true } },
           originPlace: true,
           destinationPlace: true,
-          bookings: {
-            where: { guestId: guestRecord.id },
-            include: { guest: true },
-          },
+          family: true,
         },
         orderBy: { scheduledPickupTime: 'asc' },
       });
@@ -283,13 +299,15 @@ export async function GET(req: NextRequest) {
       rideData = {
         tripId: activeTrip.id,
         status: guestRideStatus,
+        functionName: activeTrip.function?.name || nextFunction?.name || 'Ceremonial Transfer',
         pickupTime: activeTrip.scheduledPickupTime.toISOString(),
-        pickupLocation: activeTrip.originPlace?.name || guestRecord?.pickupLocation || 'Grand Hotel Lobby',
+        pickupLocation: activeTrip.pickupLocation || activeTrip.originPlace?.name || guestRecord?.pickupLocation || 'Grand Hotel Lobby',
         pickupAddress: activeTrip.originPlace?.address || 'Curbside Hospitality Pavilion',
         pickupCoordinates: { lat: originLat, lng: originLng },
-        destinationVenue: activeTrip.destinationPlace?.name || nextFunction?.venueName || 'Banquet Lawn',
+        destinationVenue: activeTrip.destination || activeTrip.destinationPlace?.name || nextFunction?.venueName || 'Banquet Lawn',
         destinationAddress: activeTrip.destinationPlace?.address || nextFunction?.venueAddress || eventRecord.city,
         destinationCoordinates: { lat: destLat, lng: destLng },
+        passengerCount: activeTrip.passengerCount || (guestRecord?.memberCount || 1),
         distanceKm: distanceToPickup,
         etaMinutes: estMinutes,
         vehicle: vehicle
@@ -305,12 +323,12 @@ export async function GET(req: NextRequest) {
           : null,
         driver: activeTrip.driver
           ? {
-              // Guest privacy boundary: First name and avatar only
               name: driverUser?.fullName ? driverUser.fullName.split(' ')[0] : 'Assigned Chauffeur',
+              phoneNumber: driverUser?.phoneNumber || null,
               avatarUrl: driverUser?.avatarUrl || null,
             }
           : null,
-        boardingCode: activeTrip.bookings?.[0]?.boardingCode || '4827',
+        boardingCode: '4827',
       };
     }
 
@@ -331,7 +349,7 @@ export async function GET(req: NextRequest) {
         city: eventRecord.city,
         startDate: eventRecord.startDate.toISOString(),
         endDate: eventRecord.endDate.toISOString(),
-        joinCode: eventRecord.joinCode,
+        joinCode: eventRecord.joinCode, // Master Wedding Event Code (e.g. JPR26A)
         bannerUrl: eventRecord.bannerUrl,
         venueName: eventRecord.venueName,
         venueAddress: eventRecord.venueAddress,

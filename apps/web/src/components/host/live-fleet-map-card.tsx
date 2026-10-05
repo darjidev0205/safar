@@ -1,20 +1,49 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Car, ExternalLink, Navigation, LocateFixed } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  Car,
+  ExternalLink,
+  Navigation,
+  LocateFixed,
+  Clock,
+  Compass,
+  PhoneCall,
+  CheckCircle2,
+  RefreshCw,
+} from 'lucide-react';
 import { StatusBadge } from '../ui/status-badge';
 import { StarFlourish } from '../ui/botanical-ornaments';
 import { loadGoogleMaps } from '../../lib/google-maps';
 import { useRealtimeTrip } from '../../lib/use-realtime-trip';
+import { AnimatedDriverMarker } from '../../lib/marker-animator';
+import { LatLng } from '../../lib/location-service';
 
 interface LiveFleetMapCardProps {
   onOpenLiveMap?: () => void;
+}
+
+interface FleetDriverItem {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleModel: string;
+  plateNumber: string;
+  functionName: string;
+  status: string;
+  currentLat: number;
+  currentLng: number;
+  heading: number;
+  speedKmh: number;
+  distanceAwayKm: number;
+  etaMinutes: number;
 }
 
 const MAP_STYLES = [
   { featureType: 'all', elementType: 'geometry', stylers: [{ color: '#fbf9f4' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#e5ecf0' }] },
   { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#f5efe6' }] },
   { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#6b5b4a' }] },
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
@@ -22,12 +51,68 @@ const MAP_STYLES = [
 export function LiveFleetMapCard({ onOpenLiveMap }: LiveFleetMapCardProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const activeDriverMarkerRef = useRef<any>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const driverMarkersMapRef = useRef<Map<string, any>>(new Map());
+  const activeAnimatorRef = useRef<AnimatedDriverMarker | null>(null);
 
-  // Connect to live real-time active trip stream
+  const [mapReady, setMapReady] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>('tr_101');
+
+  // Realtime trip stream from Firestore
   const activeTrip = useRealtimeTrip('tr_101');
 
+  // Fleet list with authorized wedding transportation convoys
+  const fleetDrivers: FleetDriverItem[] = [
+    {
+      id: 'tr_101',
+      name: activeTrip.driver.name || 'Rajesh Kumar',
+      phone: activeTrip.driver.phone || '+91 98765 43210',
+      vehicleModel: activeTrip.vehicle.model || 'Toyota Innova Crysta',
+      plateNumber: activeTrip.vehicle.plateNumber || 'GJ 01 AB 1234',
+      functionName: 'Sangeet Ceremony',
+      status: activeTrip.status || 'IN_TRANSIT',
+      currentLat: activeTrip.telemetry.currentLat || 23.0338,
+      currentLng: activeTrip.telemetry.currentLng || 72.5256,
+      heading: activeTrip.telemetry.heading || 74,
+      speedKmh: activeTrip.telemetry.speedKmh || 38,
+      distanceAwayKm: activeTrip.telemetry.remainingDistanceKm || 2.4,
+      etaMinutes: Math.max(1, Math.round((activeTrip.telemetry.remainingDistanceKm || 2.4) * 2.2)),
+    },
+    {
+      id: 'tr_102',
+      name: 'Amit Shah',
+      phone: '+91 98250 11223',
+      vehicleModel: 'Maruti Suzuki Ertiga',
+      plateNumber: 'GJ 01 CD 5678',
+      functionName: 'Wedding Ceremony',
+      status: 'IN_TRANSIT',
+      currentLat: 23.0452,
+      currentLng: 72.5082,
+      heading: 140,
+      speedKmh: 42,
+      distanceAwayKm: 5.1,
+      etaMinutes: 14,
+    },
+    {
+      id: 'tr_103',
+      name: 'Neha Sharma',
+      phone: '+91 98980 99887',
+      vehicleModel: 'Toyota Innova Hycross',
+      plateNumber: 'GJ 27 EF 9012',
+      functionName: 'Reception Banquet',
+      status: 'ARRIVED',
+      currentLat: 23.0225,
+      currentLng: 72.5714,
+      heading: 0,
+      speedKmh: 0,
+      distanceAwayKm: 0.0,
+      etaMinutes: 0,
+    },
+  ];
+
+  const selectedDriver =
+    fleetDrivers.find((d) => d.id === selectedDriverId) || fleetDrivers[0];
+
+  // Initialize Map
   useEffect(() => {
     loadGoogleMaps()
       .then(() => {
@@ -36,12 +121,12 @@ export function LiveFleetMapCard({ onOpenLiveMap }: LiveFleetMapCardProps) {
 
         const map = new goog.maps.Map(mapRef.current, {
           center: {
-            lat: activeTrip.telemetry.currentLat || 23.0338,
-            lng: activeTrip.telemetry.currentLng || 72.5256,
+            lat: selectedDriver.currentLat,
+            lng: selectedDriver.currentLng,
           },
           zoom: 13,
           disableDefaultUI: true,
-          zoomControl: false,
+          zoomControl: true,
           gestureHandling: 'cooperative',
           styles: MAP_STYLES,
         });
@@ -63,15 +148,15 @@ export function LiveFleetMapCard({ onOpenLiveMap }: LiveFleetMapCardProps) {
           zIndex: 5,
         });
 
-        // Destination point marker (burgundy)
+        // Destination point marker (terracotta)
         new goog.maps.Marker({
           position: { lat: activeTrip.destination.lat, lng: activeTrip.destination.lng },
           map,
           title: activeTrip.destination.name,
           icon: {
             path: goog.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-            scale: 6,
-            fillColor: '#8C2B32',
+            scale: 6.5,
+            fillColor: '#C86D51',
             fillOpacity: 1,
             strokeColor: '#ffffff',
             strokeWeight: 2,
@@ -79,93 +164,131 @@ export function LiveFleetMapCard({ onOpenLiveMap }: LiveFleetMapCardProps) {
           zIndex: 5,
         });
 
-        // Active driver vehicle marker (terracotta moving arrow)
-        const driverMarker = new goog.maps.Marker({
-          position: {
-            lat: activeTrip.telemetry.currentLat,
-            lng: activeTrip.telemetry.currentLng,
-          },
-          map,
-          title: `${activeTrip.driver.name} (${activeTrip.vehicle.model})`,
-          icon: {
-            path: goog.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 7,
-            rotation: activeTrip.telemetry.heading || 0,
-            fillColor: '#C86D51',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
-          },
-          zIndex: 10,
+        // Render markers for all fleet drivers
+        fleetDrivers.forEach((driver) => {
+          if (driver.id === 'tr_101') {
+            activeAnimatorRef.current = new AnimatedDriverMarker({
+              map,
+              initialPosition: { lat: driver.currentLat, lng: driver.currentLng },
+              initialHeading: driver.heading,
+              vehicleTitle: `${driver.name} (${driver.vehicleModel})`,
+              iconColor: '#0f172a',
+            });
+          } else {
+            const marker = new goog.maps.Marker({
+              position: { lat: driver.currentLat, lng: driver.currentLng },
+              map,
+              title: `${driver.name} (${driver.vehicleModel})`,
+              icon: {
+                path: goog.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                scale: 6.5,
+                rotation: driver.heading,
+                fillColor: '#475569',
+                fillOpacity: 0.9,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+              },
+              zIndex: 8,
+            });
+            driverMarkersMapRef.current.set(driver.id, marker);
+          }
         });
-        activeDriverMarkerRef.current = driverMarker;
-
-        const info = new goog.maps.InfoWindow({
-          content: `<div style="font-family:sans-serif;font-size:11px;padding:4px 2px;max-width:180px">
-            <strong>${activeTrip.vehicle.model}</strong><br/>
-            ${activeTrip.vehicle.plateNumber}<br/>
-            <span style="color:#C86D51;font-weight:bold">${activeTrip.driver.name}</span> &bull; ${activeTrip.telemetry.speedKmh} km/h
-          </div>`,
-        });
-        driverMarker.addListener('click', () => info.open(map, driverMarker));
 
         setMapReady(true);
       })
-      .catch(() => {});
+      .catch((err) => console.warn('Host fleet map init notice:', err));
   }, []);
 
-  // Update marker position and heading in real-time when GPS coordinates change (no page refresh)
+  // Update primary driver live position smoothly
   useEffect(() => {
-    if (!mapReady || !activeDriverMarkerRef.current) return;
-    const goog = (window as any).google;
-    const newPos = {
-      lat: activeTrip.telemetry.currentLat,
-      lng: activeTrip.telemetry.currentLng,
-    };
-    activeDriverMarkerRef.current.setPosition(newPos);
-    activeDriverMarkerRef.current.setIcon({
-      path: goog.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-      scale: 7,
-      rotation: activeTrip.telemetry.heading || 0,
-      fillColor: '#C86D51',
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-    });
-  }, [activeTrip.telemetry.currentLat, activeTrip.telemetry.currentLng, activeTrip.telemetry.heading, mapReady]);
+    if (!mapReady || !activeAnimatorRef.current) return;
 
-  const etaMin = Math.max(1, Math.round(activeTrip.telemetry.remainingDistanceKm * 2.2));
+    activeAnimatorRef.current.moveTo(
+      {
+        lat: activeTrip.telemetry.currentLat,
+        lng: activeTrip.telemetry.currentLng,
+      },
+      activeTrip.telemetry.heading,
+      { durationMs: 2000 }
+    );
+  }, [
+    activeTrip.telemetry.currentLat,
+    activeTrip.telemetry.currentLng,
+    activeTrip.telemetry.heading,
+    mapReady,
+  ]);
+
+  // Focus map on selected driver (Requirement 29: Clicking a driver focuses map)
+  const handleSelectDriver = (driver: FleetDriverItem) => {
+    setSelectedDriverId(driver.id);
+    if (!mapInstanceRef.current) return;
+
+    mapInstanceRef.current.panTo({
+      lat: driver.currentLat,
+      lng: driver.currentLng,
+    });
+    mapInstanceRef.current.setZoom(14);
+  };
+
+  // Recenter map on all drivers
+  const handleFitAll = () => {
+    if (!mapInstanceRef.current) return;
+    const goog = (window as any).google;
+    if (!goog?.maps?.LatLngBounds) return;
+
+    const bounds = new goog.maps.LatLngBounds();
+    fleetDrivers.forEach((d) => bounds.extend({ lat: d.currentLat, lng: d.currentLng }));
+    bounds.extend({ lat: activeTrip.pickup.lat, lng: activeTrip.pickup.lng });
+    bounds.extend({ lat: activeTrip.destination.lat, lng: activeTrip.destination.lng });
+    mapInstanceRef.current.fitBounds(bounds, 40);
+  };
 
   return (
     <div className="bg-white rounded-3xl border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] overflow-hidden font-sans">
+      {/* Top Panel Header */}
       <div className="px-5 py-4 border-b border-warm-200/80 flex items-center justify-between bg-warm-50/60">
         <div>
           <div className="flex items-center gap-1.5 font-serif font-bold text-sm text-charcoal-900">
             <StarFlourish className="w-2.5 h-2.5 text-gold-600" />
-            <span>Live Vehicle Tracking (Real GPS)</span>
+            <span>Live Transportation Fleet Tracking</span>
           </div>
           <p className="text-xs text-charcoal-500 mt-0.5">
-            Real-time device GPS telemetry broadcast from active wedding chauffeurs
+            Real-time GPS telemetry across ceremonial convoys &bull; Click any chauffeur to focus map
           </p>
         </div>
-        {onOpenLiveMap && (
-          <button
-            onClick={onOpenLiveMap}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>Full Map</span>
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {mapReady && (
+            <button
+              type="button"
+              onClick={handleFitAll}
+              className="px-3 py-1.5 rounded-full bg-white text-xs font-semibold text-charcoal-700 hover:text-terracotta-700 border border-warm-200 shadow-2xs flex items-center gap-1.5 active:scale-95 transition-all"
+            >
+              <LocateFixed className="w-3.5 h-3.5" />
+              <span>Fit Fleet</span>
+            </button>
+          )}
+
+          {onOpenLiveMap && (
+            <button
+              onClick={onOpenLiveMap}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Full Map</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-warm-200/80">
+        {/* Map Container (7 cols) */}
         <div className="lg:col-span-7 p-4 bg-warm-50/50">
-          <div className="relative h-64 w-full rounded-2xl overflow-hidden bg-[#FAF7F2] border border-warm-300/80 shadow-inner">
+          <div className="relative h-72 sm:h-80 w-full rounded-2xl overflow-hidden bg-[#FAF7F2] border border-warm-300/80 shadow-inner">
             <div ref={mapRef} className="w-full h-full absolute inset-0" />
             {!mapReady && (
               <div className="w-full h-full absolute inset-0 flex items-center justify-center">
-                <div className="bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-[10px] font-semibold text-charcoal-600 border border-warm-200 animate-pulse">
+                <div className="bg-white/80 backdrop-blur-sm px-3.5 py-1.5 rounded-full text-[11px] font-semibold text-charcoal-600 border border-warm-200 animate-pulse">
                   Connecting to real-time telemetry stream…
                 </div>
               </div>
@@ -173,97 +296,82 @@ export function LiveFleetMapCard({ onOpenLiveMap }: LiveFleetMapCardProps) {
             {mapReady && (
               <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-warm-300 text-[11px] font-semibold text-charcoal-800 shadow-2xs flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live GPS &bull; Speed: {activeTrip.telemetry.speedKmh} km/h</span>
+                <span>
+                  Tracking: <strong className="text-terracotta-700">{selectedDriver.name}</strong> &bull; {selectedDriver.speedKmh} km/h
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Live Active Convoys List */}
+        {/* Live Active Convoys List (5 cols) */}
         <div className="lg:col-span-5 p-4 space-y-3 bg-white/95">
-          {/* Active Trip Telemetry Card */}
-          <div className="p-3.5 rounded-2xl border border-terracotta-200 bg-terracotta-50/20 space-y-2.5 transition-all shadow-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-charcoal-900 text-white flex items-center justify-center">
-                  <Car className="w-4 h-4 text-warm-200" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs text-charcoal-900 font-serif">
-                    {activeTrip.driver.name} &bull; {activeTrip.vehicle.model}
-                  </div>
-                  <div className="text-[11px] font-mono text-terracotta-700 font-bold">
-                    {activeTrip.vehicle.plateNumber}
-                  </div>
-                </div>
-              </div>
-              <StatusBadge status={activeTrip.status} size="sm" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-warm-200/60 text-xs">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-charcoal-400 block">
-                  Mileage Progress
-                </span>
-                <span className="font-bold text-charcoal-900">
-                  {activeTrip.telemetry.actualDistanceKm.toFixed(1)} km{' '}
-                  <span className="text-charcoal-400 font-normal">
-                    / {activeTrip.telemetry.plannedDistanceKm.toFixed(1)} km
-                  </span>
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-charcoal-400 block">
-                  ETA to Venue
-                </span>
-                <span className="font-bold text-charcoal-900">{etaMin} min</span>
-              </div>
-            </div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-charcoal-400 px-1">
+            Active Event Chauffeurs ({fleetDrivers.length})
           </div>
 
-          {/* Other Vehicles in Event Fleet */}
-          {[
-            {
-              plate: 'GJ 01 CD 5678',
-              model: 'Toyota Innova Crysta',
-              driver: 'Amit Patel',
-              status: 'ARRIVED',
-              distance: '8.2 km / 8.2 km',
-              eta: 'Arrived',
-            },
-            {
-              plate: 'GJ 27 EF 9012',
-              model: 'Toyota Camry Hybrid',
-              driver: 'Suresh Kumar',
-              status: 'SCHEDULED',
-              distance: '0.0 km / 14.0 km',
-              eta: '10:00 AM',
-            },
-          ].map((v, idx) => (
-            <div
-              key={idx}
-              className="p-3 rounded-2xl border border-warm-200/90 hover:border-warm-300 bg-warm-50/30 transition-all flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-warm-100 border border-warm-200 flex items-center justify-center">
-                  <Car className="w-4 h-4 text-charcoal-600" />
-                </div>
-                <div>
-                  <div className="font-bold text-xs text-charcoal-900">{v.plate}</div>
-                  <div className="text-[11px] text-charcoal-500">
-                    {v.model} &bull; {v.driver}
+          <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+            {fleetDrivers.map((driver) => {
+              const isSelected = driver.id === selectedDriverId;
+              return (
+                <div
+                  key={driver.id}
+                  onClick={() => handleSelectDriver(driver)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'border-terracotta-400 bg-terracotta-50/30 shadow-xs ring-1 ring-terracotta-400/40'
+                      : 'border-warm-200/90 hover:border-warm-300 bg-warm-50/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold font-serif ${
+                          isSelected
+                            ? 'bg-charcoal-900 text-white'
+                            : 'bg-warm-100 text-charcoal-700 border border-warm-200'
+                        }`}
+                      >
+                        {driver.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-charcoal-900 font-serif">
+                          {driver.name}
+                        </div>
+                        <div className="text-[11px] text-charcoal-500 font-sans">
+                          {driver.vehicleModel} &bull; <span className="font-mono text-charcoal-700">{driver.plateNumber}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <StatusBadge status={driver.status} size="sm" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 mt-2 border-t border-warm-200/60 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-charcoal-400 block">
+                        Assigned Function
+                      </span>
+                      <span className="font-semibold text-charcoal-800 text-[11px] truncate block">
+                        {driver.functionName}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-bold text-charcoal-400 block">
+                        ETA &bull; Distance
+                      </span>
+                      <span className="font-bold text-terracotta-700 text-[11px]">
+                        {driver.status === 'ARRIVED'
+                          ? 'Arrived Curbside'
+                          : `${driver.etaMinutes} min (${driver.distanceAwayKm.toFixed(1)} km)`}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="text-right space-y-0.5">
-                <StatusBadge status={v.status} size="sm" />
-                <div className="text-[10px] text-charcoal-400 font-medium">{v.eta}</div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

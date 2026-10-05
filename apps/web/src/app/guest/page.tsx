@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   QrCode,
   Loader2,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import {
   MarigoldFlower,
@@ -163,9 +165,9 @@ export default function GuestHomePage() {
             <h1 className="font-serif text-2xl sm:text-3xl text-charcoal-900">
               Join Your Celebration
             </h1>
-            <p className="text-xs text-charcoal-600 leading-relaxed max-w-xs mx-auto">
-              Please enter the 6-character event code from your wedding invitation card to view
-              scheduled ceremony shuttles and live chauffeur dispatch.
+            <p className="text-xs text-charcoal-600 leading-relaxed max-w-xs mx-auto font-sans">
+              Please enter the single master event code from your wedding invitation card to view
+              all ceremonies (Mehndi, Sangeet, Wedding, Reception) and family transport.
             </p>
           </div>
 
@@ -174,7 +176,7 @@ export default function GuestHomePage() {
               type="text"
               value={joinCodeInput}
               onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-              placeholder="e.g. ROYAL6"
+              placeholder="e.g. JPR26A"
               maxLength={10}
               className="w-full text-center tracking-[0.3em] font-mono text-xl uppercase font-bold py-3.5 px-4 rounded-2xl border border-charcoal-300 bg-warm-50 text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-terracotta-500"
             />
@@ -197,7 +199,7 @@ export default function GuestHomePage() {
     );
   }
 
-  const { event, family, nextFunction, ride } = dashboardData;
+  const { event, family, functions, nextFunction, ride } = dashboardData;
   const guestFirstName = profile?.fullName ? profile.fullName.split(' ')[0] : 'Guest';
 
   return (
@@ -245,14 +247,14 @@ export default function GuestHomePage() {
             </p>
           </div>
 
-          {/* Join Code Badge with One-Tap Copy */}
+          {/* Master Join Code Badge with One-Tap Copy */}
           <div className="self-start sm:self-center">
             <button
               onClick={() => handleCopyCode(event?.joinCode)}
               className="px-3.5 py-1.5 rounded-xl bg-warm-100 hover:bg-warm-200 border border-[#E5DACB] text-xs font-semibold text-charcoal-800 flex items-center gap-2 transition-all shadow-2xs group active:scale-[0.985]"
               title="Click to copy wedding pass code"
             >
-              <span className="text-[11px] uppercase tracking-wider text-charcoal-500">Pass Code:</span>
+              <span className="text-[11px] uppercase tracking-wider text-charcoal-500">Master Pass:</span>
               <span className="font-mono font-bold text-charcoal-900">{event?.joinCode}</span>
               {copiedCode ? (
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -265,67 +267,79 @@ export default function GuestHomePage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. YOUR NEXT FUNCTION CARD                                                */}
+      {/* 2. WEDDING FUNCTIONS ITINERARY & GUEST ATTENDANCE MANIFEST                */}
       {/* ========================================================================= */}
-      {nextFunction && (
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-terracotta-600" />
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
-                Your Next Ceremony
-              </span>
-            </div>
-            <Link
-              href="/guest/events"
-              className="text-xs font-semibold text-terracotta-600 hover:text-terracotta-700 flex items-center gap-1 uppercase tracking-wider"
-            >
-              All Events <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#E5DACB]/60">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-terracotta-600" />
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
+              Ceremonies &amp; Attendance ({functions?.length || 0})
+            </span>
           </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gold-700 bg-gold-50 px-2 py-0.5 rounded-md border border-gold-200">
-                {nextFunction.eventType || 'Celebration'}
-              </span>
-              <h3 className="font-serif text-xl sm:text-2xl text-charcoal-900 font-semibold pt-1">
-                {nextFunction.name}
-              </h3>
-              <p className="text-xs text-charcoal-600 flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-charcoal-400" />
-                <span>
-                  {new Date(nextFunction.date).toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}{' '}
-                  &bull; {nextFunction.startTime} – {nextFunction.endTime}
-                </span>
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] text-xs text-charcoal-700 space-y-1 sm:max-w-xs font-sans">
-              <div className="font-bold flex items-center gap-1.5 text-charcoal-900">
-                <MapPin className="w-3.5 h-3.5 text-terracotta-600" />
-                <span>{nextFunction.venueName}</span>
-              </div>
-              <p className="text-[11px] text-charcoal-500 line-clamp-1">{nextFunction.venueAddress}</p>
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  `${nextFunction.venueName} ${nextFunction.venueAddress}`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] font-semibold text-terracotta-600 hover:underline flex items-center gap-1 pt-0.5"
-              >
-                <span>View Venue Map</span>
-                <Compass className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
+          <span className="text-[11px] font-medium text-charcoal-500 uppercase tracking-wider">
+            One Master Pass: {event?.joinCode}
+          </span>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {(functions || []).map((fn: any) => (
+            <div
+              key={fn.id}
+              className="p-4 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] hover:border-terracotta-300/80 transition-all space-y-2.5"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gold-800 bg-amber-50 px-2 py-0.5 rounded border border-gold-200">
+                    {fn.eventType || 'Ceremony'}
+                  </span>
+                  <h4 className="font-serif text-base font-bold text-charcoal-900 mt-1">
+                    {fn.name}
+                  </h4>
+                </div>
+
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                    fn.isAttending !== false
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-warm-100 text-charcoal-500 border border-warm-200'
+                  }`}
+                >
+                  {fn.isAttending !== false ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Attending</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3 h-3 text-charcoal-400" />
+                      <span>Not Attending</span>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <div className="text-xs text-charcoal-600 space-y-1 font-sans">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-charcoal-400" />
+                  <span>
+                    {new Date(fn.date).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}{' '}
+                    &bull; {fn.startTime} – {fn.endTime}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-terracotta-600" />
+                  <span className="font-medium text-charcoal-900">{fn.venueName}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ========================================================================= */}
       {/* 3. YOUR RIDE CARD (REAL DISPATCH & STATUS)                                */}
@@ -336,7 +350,7 @@ export default function GuestHomePage() {
             <div className="flex items-center gap-2">
               <Car className="w-4 h-4 text-terracotta-600" />
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-charcoal-800">
-                Your Assigned Transport
+                Your Assigned Transport &bull; {ride.functionName || 'Ceremonial Transfer'}
               </span>
             </div>
 
@@ -383,13 +397,15 @@ export default function GuestHomePage() {
                     </span>
                     <p className="text-xs font-bold text-charcoal-900">{ride.driver.name}</p>
                   </div>
-                  <a
-                    href={`tel:${ride.driver.phone}`}
-                    className="p-2 rounded-xl bg-white border border-[#E8E2D9] text-terracotta-600 hover:bg-terracotta-50 transition-colors shadow-2xs"
-                    title="Call Chauffeur"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                  </a>
+                  {ride.driver.phoneNumber && (
+                    <a
+                      href={`tel:${ride.driver.phoneNumber}`}
+                      className="p-2 rounded-xl bg-white border border-[#E8E2D9] text-terracotta-600 hover:bg-terracotta-50 transition-colors shadow-2xs"
+                      title="Call Chauffeur"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -436,7 +452,7 @@ export default function GuestHomePage() {
               href="/guest/rides"
               className="w-full py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-white text-xs font-bold tracking-widest uppercase shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.985]"
             >
-              <span>View Live Ride & Route Map</span>
+              <span>View Live Ride &amp; Route Map</span>
               <ArrowRight className="w-4 h-4 text-warm-300" />
             </Link>
           </div>

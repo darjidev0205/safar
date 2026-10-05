@@ -69,135 +69,238 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
 
-  // Helper to fetch backend profile or construct verified profile
-  const resolveProfile = useCallback(async (user: FirebaseUser, fallbackRole?: UserRole): Promise<UserProfile> => {
-    try {
-      const token = await user.getIdToken();
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('safar_auth_token', token);
+  // Helper to fetch backend profile from Next.js API with strict timeout
+  const fetchProfileFromApi = useCallback(
+    async (
+      token?: string | null,
+      email?: string | null,
+      uid?: string | null,
+      fallbackRole?: UserRole
+    ): Promise<UserProfile | null> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const params = new URLSearchParams();
+        if (email) params.set('email', email);
+        if (uid) params.set('uid', uid);
+        if (fallbackRole) params.set('targetRole', fallbackRole);
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (email) headers['x-user-email'] = email;
+        if (uid) headers['x-user-uid'] = uid;
+        if (fallbackRole) headers['x-target-role'] = fallbackRole;
+
+        const res = await fetch(`/api/auth/me?${params.toString()}`, {
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.user) {
+            const u = data.user;
+            const userProfile: UserProfile = {
+              id: u.id,
+              firebaseUid: u.firebaseUid,
+              email: u.email,
+              fullName: u.fullName,
+              phoneNumber: u.phoneNumber,
+              avatarUrl: u.avatarUrl,
+              role: u.role as UserRole,
+              createdAt: u.createdAt,
+              updatedAt: u.updatedAt,
+            };
+            return userProfile;
+          }
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('Could not fetch user profile from /api/auth/me:', err);
+        }
       }
+      return null;
+    },
+    []
+  );
+
+  // Helper to fetch backend profile or construct verified profile
+  const resolveProfile = useCallback(
+    async (user: FirebaseUser, fallbackRole?: UserRole): Promise<UserProfile> => {
+      let token = '';
+      try {
+        token = await user.getIdToken();
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safar_auth_token', token);
+        }
+      } catch (tokenErr) {
+        console.warn('Could not retrieve Firebase ID token:', tokenErr);
+      }
+
       const email = user.email || '';
       const uid = user.uid || '';
-      const roleParam = fallbackRole ? `&targetRole=${encodeURIComponent(fallbackRole)}` : '';
-      const meRes = await fetch(`/api/auth/me?email=${encodeURIComponent(email)}&uid=${encodeURIComponent(uid)}${roleParam}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-user-email': email,
-          'x-user-uid': uid,
-          ...(fallbackRole ? { 'x-target-role': fallbackRole } : {}),
-        },
-      });
-      if (meRes.ok) {
-        const meData = await meRes.json();
-        if (meData.success && meData.user) {
-          const u = meData.user;
-          const userProfile: UserProfile = {
-            id: u.id,
-            firebaseUid: u.firebaseUid,
-            email: u.email,
-            fullName: u.fullName,
-            phoneNumber: u.phoneNumber,
-            avatarUrl: u.avatarUrl,
-            role: u.role as UserRole,
-            createdAt: u.createdAt,
-            updatedAt: u.updatedAt,
-          };
-          setProfile(userProfile);
-          setRole(userProfile.role);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('safar_authenticated_session', JSON.stringify(userProfile));
-          }
-          return userProfile;
-        }
-      }
 
-      const backendProfile = await apiClient.auth.getMe();
-      if (backendProfile) {
-        setProfile(backendProfile);
-        setRole(backendProfile.role);
+      const apiProfile = await fetchProfileFromApi(token, email, uid, fallbackRole);
+      if (apiProfile) {
+        setProfile(apiProfile);
+        setRole(apiProfile.role);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('safar_authenticated_session', JSON.stringify(backendProfile));
+          localStorage.setItem('safar_authenticated_session', JSON.stringify(apiProfile));
         }
-        return backendProfile;
+        return apiProfile;
       }
-    } catch (err) {
-      console.warn('Backend profile fetch error:', err);
-    }
 
-    // Determine role if new user
-    let userRole = fallbackRole || UserRole.GUEST;
-    if (user.email && user.email.toLowerCase().includes('driver')) {
-      userRole = UserRole.DRIVER;
-    } else if (user.email && (user.email.toLowerCase().includes('host') || user.email.toLowerCase().includes('organizer'))) {
-      userRole = UserRole.EVENT_ORGANIZER;
-    }
+      // Determine fallback role if API record not found yet
+      let userRole = fallbackRole || UserRole.GUEST;
+      if (email && email.toLowerCase().includes('driver')) {
+        userRole = UserRole.DRIVER;
+      } else if (
+        email &&
+        (email.toLowerCase().includes('host') || email.toLowerCase().includes('organizer'))
+      ) {
+        userRole = UserRole.EVENT_ORGANIZER;
+      }
 
-    const fallbackProfile: UserProfile = {
-      id: user.uid,
-      firebaseUid: user.uid,
-      email: user.email,
-      phoneNumber: user.phoneNumber,
-      fullName: user.displayName || (user.email ? user.email.split('@')[0] : 'SAFAR User'),
-      avatarUrl: user.photoURL,
-      role: userRole,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      const fallbackProfile: UserProfile = {
+        id: user.uid,
+        firebaseUid: user.uid,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        fullName: user.displayName || (user.email ? user.email.split('@')[0] : 'SAFAR User'),
+        avatarUrl: user.photoURL,
+        role: userRole,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    setProfile(fallbackProfile);
-    setRole(userRole);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safar_authenticated_session', JSON.stringify(fallbackProfile));
-    }
-    return fallbackProfile;
-  }, []);
+      setProfile(fallbackProfile);
+      setRole(userRole);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('safar_authenticated_session', JSON.stringify(fallbackProfile));
+      }
+      return fallbackProfile;
+    },
+    [fetchProfileFromApi]
+  );
 
-  // Central Firebase Auth Lifecycle listener
+  // Central Auth Lifecycle & Session Verification Listener
   useEffect(() => {
     let mounted = true;
+    let resolved = false;
 
-    // Safety timeout: if onAuthStateChanged hasn't resolved within 1.5s, release AUTH_LOADING
-    const safetyTimer = setTimeout(() => {
-      if (mounted && authStatus === 'AUTH_LOADING') {
-        setAuthStatus('UNAUTHENTICATED');
-      }
-    }, 1500);
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const cleanupAndSetUnauthenticated = () => {
       if (!mounted) return;
-      if (user) {
-        setFirebaseUser(user);
-        try {
-          await resolveProfile(user);
-          if (mounted) setAuthStatus('AUTHENTICATED');
-        } catch (err) {
-          console.error('Error resolving user profile on auth state changed:', err);
-          if (mounted) setAuthStatus('UNAUTHENTICATED');
-        }
-      } else {
-        // STRICTLY UNAUTHENTICATED — NO STALE SESSIONS ALLOWED
-        if (mounted) {
-          setFirebaseUser(null);
-          setProfile(null);
-          setRole(null);
-          setActiveEvent(null);
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('safar_auth_token');
-            localStorage.removeItem('safar_dev_token');
-            localStorage.removeItem('safar_dev_role');
-            localStorage.removeItem('safar_authenticated_session');
+      setFirebaseUser(null);
+      setProfile(null);
+      setRole(null);
+      setActiveEvent(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('safar_auth_token');
+        localStorage.removeItem('safar_dev_token');
+        localStorage.removeItem('safar_dev_role');
+        localStorage.removeItem('safar_authenticated_session');
+      }
+      setAuthStatus('UNAUTHENTICATED');
+    };
+
+    // Safety watchdog: ensure authStatus NEVER stays in AUTH_LOADING indefinitely
+    const watchdogTimer = setTimeout(() => {
+      if (mounted && !resolved) {
+        resolved = true;
+        setAuthStatus((prev) => (prev === 'AUTH_LOADING' ? 'UNAUTHENTICATED' : prev));
+      }
+    }, 2500);
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (user) => {
+        if (!mounted) return;
+
+        if (user) {
+          setFirebaseUser(user);
+          try {
+            await resolveProfile(user);
+            if (mounted) {
+              resolved = true;
+              setAuthStatus('AUTHENTICATED');
+            }
+          } catch (err) {
+            console.error('Error resolving user profile on auth state changed:', err);
+            if (mounted) {
+              resolved = true;
+              setAuthStatus('UNAUTHENTICATED');
+            }
           }
-          setAuthStatus('UNAUTHENTICATED');
+        } else {
+          // If no Firebase user, check if there's a stored session (e.g. password login or test session)
+          if (typeof window !== 'undefined') {
+            const storedSession = localStorage.getItem('safar_authenticated_session');
+            const storedToken = localStorage.getItem('safar_auth_token');
+
+            if (storedSession) {
+              try {
+                const parsed: UserProfile = JSON.parse(storedSession);
+                if (parsed && (parsed.email || parsed.id)) {
+                  // Verify with API
+                  const verifiedProfile = await fetchProfileFromApi(
+                    storedToken,
+                    parsed.email,
+                    parsed.firebaseUid || parsed.id,
+                    parsed.role
+                  );
+
+                  if (mounted) {
+                    if (verifiedProfile) {
+                      setProfile(verifiedProfile);
+                      setRole(verifiedProfile.role);
+                      localStorage.setItem(
+                        'safar_authenticated_session',
+                        JSON.stringify(verifiedProfile)
+                      );
+                      resolved = true;
+                      setAuthStatus('AUTHENTICATED');
+                      return;
+                    } else if (parsed.role) {
+                      // Cached session exists and is structurally valid
+                      setProfile(parsed);
+                      setRole(parsed.role);
+                      resolved = true;
+                      setAuthStatus('AUTHENTICATED');
+                      return;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('Error parsing cached session:', e);
+              }
+            }
+          }
+
+          if (mounted) {
+            resolved = true;
+            cleanupAndSetUnauthenticated();
+          }
+        }
+      },
+      (error) => {
+        console.error('Firebase onAuthStateChanged error:', error);
+        if (mounted) {
+          resolved = true;
+          cleanupAndSetUnauthenticated();
         }
       }
-    });
+    );
 
     return () => {
       mounted = false;
-      clearTimeout(safetyTimer);
+      clearTimeout(watchdogTimer);
       unsubscribe();
     };
-  }, [resolveProfile]);
+  }, [resolveProfile, fetchProfileFromApi]);
 
   const refreshProfile = async () => {
     if (firebaseUser) {

@@ -24,7 +24,7 @@ export default function DriverNavigationPage() {
     // Start real GPS tracking on navigation screen
     tracker.startTracking();
 
-    const unsub = tracker.subscribe((st) => {
+    const unsub = tracker.subscribe((st: TrackingState) => {
       setDeviceGps(st);
     });
 

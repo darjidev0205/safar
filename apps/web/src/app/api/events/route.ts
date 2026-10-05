@@ -131,6 +131,9 @@ export async function POST(req: NextRequest) {
       bannerUrl,
       parentEventId,
       transport,
+      functions,
+      guestAccessCode: customGuestCode,
+      driverAccessCode: customDriverCode,
     } = body;
 
     if (!name || !name.trim()) {
@@ -167,8 +170,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate unique driver and guest access codes
-    const { driverAccessCode, guestAccessCode } = await generateUniqueEventAccessCodes();
+    // Generate or validate unique driver and guest access codes for the EVENT
+    let guestAccessCode = customGuestCode?.trim();
+    let driverAccessCode = customDriverCode?.trim();
+
+    if (!guestAccessCode || !driverAccessCode) {
+      const generated = await generateUniqueEventAccessCodes();
+      if (!guestAccessCode) guestAccessCode = generated.guestAccessCode;
+      if (!driverAccessCode) driverAccessCode = generated.driverAccessCode;
+    } else {
+      // Ensure provided custom codes do not collide
+      const existing = await prisma.event.findFirst({
+        where: {
+          OR: [
+            { guestAccessCode },
+            { driverAccessCode },
+            { joinCode: guestAccessCode },
+          ],
+        },
+      });
+      if (existing) {
+        const generated = await generateUniqueEventAccessCodes();
+        guestAccessCode = generated.guestAccessCode;
+        driverAccessCode = generated.driverAccessCode;
+      }
+    }
+
     const joinCode = guestAccessCode; // Backward compatibility with joinCode
 
     const createdEvent = await prisma.$transaction(async (tx) => {
@@ -230,6 +257,56 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // If this is a child ceremony/function under a master event
+      if (parentEventId) {
+        await tx.function.create({
+          data: {
+            eventId: parentEventId,
+            name: name.trim(),
+            date: parsedStartDate,
+            startTime: parsedStartDate,
+            endTime: parsedEndDate,
+            venueName: venueName?.trim() || null,
+            venueAddress: venueAddress?.trim() || null,
+            description: description?.trim() || null,
+          },
+        });
+      }
+
+      // If multiple functions are supplied in this master event creation
+      if (Array.isArray(functions) && functions.length > 0) {
+        for (const fn of functions) {
+          if (!fn.name?.trim()) continue;
+          const fnDateStr = fn.date || (fn.startDate ? String(fn.startDate).substring(0, 10) : parsedStartDate.toISOString().substring(0, 10));
+          const fnStartDate = new Date(fnDateStr);
+          const startIso = fn.startTime ? `${fnDateStr}T${fn.startTime}:00` : `${fnDateStr}T18:00:00`;
+          const endIso = fn.endTime ? `${fnDateStr}T${fn.endTime}:00` : `${fnDateStr}T23:00:00`;
+
+          const fnStart = new Date(startIso);
+          let fnEnd = new Date(endIso);
+          if (isNaN(fnEnd.getTime()) || fnEnd <= fnStart) {
+            fnEnd = new Date(fnStart.getTime() + 4 * 60 * 60 * 1000);
+          }
+
+          await tx.function.create({
+            data: {
+              eventId: newEvent.id,
+              name: fn.name.trim(),
+              type: fn.type || 'CUSTOM',
+              date: isNaN(fnStartDate.getTime()) ? parsedStartDate : fnStartDate,
+              startTime: isNaN(fnStart.getTime()) ? parsedStartDate : fnStart,
+              endTime: fnEnd,
+              venueName: fn.venueName?.trim() || venueName?.trim() || null,
+              venueAddress: fn.venueAddress?.trim() || venueAddress?.trim() || null,
+              latitude: fn.latitude ? parseFloat(fn.latitude) : (venueLatitude ? parseFloat(venueLatitude) : null),
+              longitude: fn.longitude ? parseFloat(fn.longitude) : (venueLongitude ? parseFloat(venueLongitude) : null),
+              description: fn.description?.trim() || null,
+              status: 'ACTIVE',
+            },
+          });
+        }
+      }
+
       return newEvent;
     });
 
@@ -237,6 +314,9 @@ export async function POST(req: NextRequest) {
       where: { id: createdEvent.id },
       include: {
         transportRequirements: true,
+        functions: {
+          orderBy: { startTime: 'asc' },
+        },
       },
     });
 

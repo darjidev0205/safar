@@ -18,6 +18,30 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const router = useRouter();
   const { authStatus, role, profile } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [loadTimeout, setLoadTimeout] = useState(false);
+
+  // Safety timeout on AuthGuard loading display (3.5s)
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (authStatus === 'AUTH_LOADING') {
+      timer = setTimeout(() => {
+        setLoadTimeout(true);
+      }, 3500);
+    } else {
+      setLoadTimeout(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [authStatus]);
+
+  // If unauthenticated, redirect to login cleanly with redirect target
+  useEffect(() => {
+    if (authStatus === 'UNAUTHENTICATED') {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/host';
+      router.replace(`/login?redirect=${encodeURIComponent(currentPath)}`);
+    }
+  }, [authStatus, router]);
 
   // If loading authentication state, show branded SAFAR loading screen
   if (authStatus === 'AUTH_LOADING') {
@@ -29,12 +53,26 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
             <Loader2 className="w-4 h-4 text-safar-600 animate-spin" />
             <span>Verifying secure session...</span>
           </div>
+
+          {loadTimeout && (
+            <div className="pt-4 space-y-2 animate-in fade-in duration-300">
+              <p className="text-[11px] text-charcoal-500">
+                Session verification is taking longer than usual.
+              </p>
+              <Link
+                href="/login?redirect=/host"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-charcoal-900 text-white text-xs font-semibold hover:bg-charcoal-800 transition-colors shadow-2xs"
+              >
+                Go to Sign In <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // If unauthenticated, NEVER render the protected dashboard
+  // If unauthenticated, render clean redirecting / sign-in screen
   if (authStatus === 'UNAUTHENTICATED') {
     return (
       <div className="min-h-screen bg-[#FAF7F2] paper-texture flex flex-col items-center justify-center p-6 text-center font-sans">
@@ -48,17 +86,17 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
               Authentication Required
             </h2>
             <p className="text-xs text-charcoal-600 leading-relaxed">
-              This transportation dashboard is protected by SAFAR multi-tenant security. Please sign in with your authorized guest or host account.
+              Redirecting to secure login...
             </p>
           </div>
 
           <div className="pt-2 space-y-2">
-            <button
-              onClick={() => setShowAuthModal(true)}
+            <Link
+              href="/login?redirect=/host"
               className="w-full py-3 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               Sign In to SAFAR <ArrowRight className="w-4 h-4" />
-            </button>
+            </Link>
             <Link
               href="/"
               className="block w-full py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider text-charcoal-600 hover:bg-warm-100 transition-colors"

@@ -65,6 +65,25 @@ export async function POST(
         },
       });
 
+      // If DRIVER, mark DriverEvent as REJECTED
+      if (accessRequest.role === 'DRIVER') {
+        const driver = await tx.driver.findFirst({
+          where: { userId: accessRequest.userId },
+        });
+        if (driver) {
+          await tx.driverEvent.updateMany({
+            where: {
+              driverId: driver.id,
+              eventId: accessRequest.eventId,
+            },
+            data: {
+              status: 'REJECTED',
+              rejectedAt: now,
+            },
+          });
+        }
+      }
+
       return reqUpdated;
     });
 

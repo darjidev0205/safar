@@ -14,7 +14,7 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
 
-  // Active events state - starts empty for real hosts!
+  // Active events state
   const [events, setEvents] = useState<EventModel[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventModel | null>(null);
 
@@ -76,10 +76,11 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
       localStorage.setItem('safar_host_events', JSON.stringify(updated));
     }
   };
+
   return (
     <AuthGuard allowedRoles={[UserRole.EVENT_ORGANIZER, UserRole.ACCOUNT_OWNER, UserRole.SUPER_ADMIN]}>
-      <div className="min-h-screen w-full flex bg-warm-50 paper-texture text-charcoal-900 font-sans overflow-x-hidden">
-        {/* Sidebar - Desktop and Tablet Only */}
+      <div className="min-h-screen w-full flex bg-warm-50 paper-texture text-charcoal-900 font-sans overflow-x-hidden antialiased">
+        {/* Fixed Desktop Sidebar */}
         <div className="hidden md:flex shrink-0">
           <HostSidebar currentTab={currentTab} onTabChange={handleTabChange} />
         </div>
@@ -93,15 +94,17 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
             onOpenWizard={() => setIsWizardOpen(true)}
           />
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto pb-24 md:pb-8">
-            {children}
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto pb-24 md:pb-10 min-w-0">
+            <div className="max-w-[1360px] mx-auto w-full min-w-0">
+              {children}
+            </div>
           </main>
         </div>
 
-        {/* Mobile Floating Glass Bottom Navigation */}
+        {/* Mobile Floating Bottom Navigation */}
         <MobileBottomNav onOpenWizard={() => setIsWizardOpen(true)} />
 
-        {/* Bespoke Event Creation Wizard */}
+        {/* Celebration Creation Wizard */}
         <EventWizardModal
           isOpen={isWizardOpen}
           onClose={() => setIsWizardOpen(false)}

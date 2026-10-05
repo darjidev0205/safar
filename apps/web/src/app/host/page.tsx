@@ -1,43 +1,40 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { ChevronRight, Calendar, Plus } from 'lucide-react';
+import { useAuth } from '../../context/auth-context';
+import { DashboardHero } from '../../components/host/dashboard-hero';
 import { KpiCards, HostKpiStats } from '../../components/host/kpi-cards';
-import { UpcomingTripsTable } from '../../components/host/upcoming-trips-table';
-import { LiveFleetMapCard } from '../../components/host/live-fleet-map-card';
+import { SectionHeader } from '../../components/host/section-header';
+import { FunctionCard, FunctionCardData } from '../../components/host/function-card';
+import { AccessCodeCard } from '../../components/host/access-code-card';
 import { AccessRequestsPanel } from '../../components/host/access-requests-panel';
-import {
-  CalendarPlus,
-  Plus,
-  Edit3,
-  Users,
-  Car,
-  Clock,
-  MapPin,
-  ChevronRight,
-  FileSpreadsheet,
-} from 'lucide-react';
-import { TripStatus } from '@safar/types';
+import { LiveTrackingPanel } from '../../components/host/live-tracking-panel';
+import { ShuttlePanel } from '../../components/host/shuttle-panel';
+import { EmptyState } from '../../components/host/empty-state';
 import { EventWizardModal } from '../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../components/host/edit-event-modal';
 import { GuestExcelImportModal } from '../../components/host/guest-excel-import-modal';
-import { useAuth } from '../../context/auth-context';
-import { formatHostGreeting } from '../../lib/time-greeting';
-import { StarFlourish, MarigoldFlower, OliveBranch } from '../../components/ui/botanical-ornaments';
-import { SafarBadge, SafarButton, SafarEmptyState, HorizontalCardScroller } from '../../components/ui/safar-design-system';
-import Link from 'next/link';
+import { EventAccessCodesModal } from '../../components/host/event-access-codes-modal';
+import { TripStatus } from '@safar/types';
 
 export default function HostDashboardPage() {
   const { profile, authStatus } = useAuth();
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+
+  // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isCodesModalOpen, setIsCodesModalOpen] = useState(false);
 
   const [events, setEvents] = useState<any[]>([]);
   const [activeEvent, setActiveEvent] = useState<any | null>(null);
   const [stats, setStats] = useState<HostKpiStats>({
     totalGuests: 0,
     families: 0,
+    functionsCount: 0,
     vehiclesRequired: 0,
     guestsAssigned: 0,
     guestsPending: 0,
@@ -85,10 +82,22 @@ export default function HostDashboardPage() {
 
       if (eventsRes.ok) {
         const eventsData = await eventsRes.json();
-        if (eventsData.success && Array.isArray(eventsData.events)) {
+        if (eventsData.success && Array.isArray(eventsData.events) && eventsData.events.length > 0) {
           setEvents(eventsData.events);
-          if (eventsData.events.length > 0 && !activeEvent) {
+          if (!activeEvent) {
             setActiveEvent(eventsData.events[0]);
+          }
+        } else if (typeof window !== 'undefined') {
+          try {
+            const stored = JSON.parse(localStorage.getItem('safar_host_events') || '[]');
+            if (Array.isArray(stored) && stored.length > 0) {
+              setEvents(stored);
+              if (!activeEvent) {
+                setActiveEvent(stored[0]);
+              }
+            }
+          } catch {
+            // ignore
           }
         }
       }
@@ -127,214 +136,162 @@ export default function HostDashboardPage() {
     setActiveEvent(updatedEvent);
   };
 
-  const getFunctionBadgeVariant = (type: string) => {
-    const t = (type || '').toUpperCase();
-    if (t.includes('SANGEET')) return 'sangeet';
-    if (t.includes('MEHNDI')) return 'mehndi';
-    if (t.includes('HALDI')) return 'haldi';
-    if (t.includes('WEDDING')) return 'wedding';
-    if (t.includes('RECEPTION')) return 'reception';
-    return 'custom';
-  };
+  // Convert raw trips to typed models for ShuttlePanel
+  const formattedTrips = trips.map((t) => ({
+    id: t.id,
+    eventId: t.eventId,
+    originPlaceId: '',
+    destinationPlaceId: '',
+    scheduledPickupTime: t.scheduledPickupTime,
+    status: t.status as TripStatus,
+    origin: {
+      name: t.originName || 'Guest Hotel',
+      address: '',
+      latitude: 0,
+      longitude: 0,
+      type: 'HOTEL' as any,
+      id: '',
+      eventId: '',
+    },
+    destination: t.destinationName || 'Ceremony Venue',
+    destinationLocation: {
+      name: t.destinationName || 'Ceremony Venue',
+      address: '',
+      latitude: 0,
+      longitude: 0,
+      type: 'VENUE' as any,
+      id: '',
+      eventId: '',
+    },
+    vehicle: t.vehicleModel
+      ? {
+          model: t.vehicleModel,
+          plateNumber: t.vehiclePlate || 'GJ 01 AB 1234',
+          id: '',
+          accountId: '',
+          category: 'SEDAN' as any,
+          capacity: 4,
+          isActive: true,
+        }
+      : undefined,
+    driver: t.driverName
+      ? {
+          fullName: t.driverName,
+          phoneNumber: t.driverPhone,
+          id: '',
+          accountId: '',
+          userId: '',
+          licenseNumber: '',
+          dutyStatus: 'ON_DUTY' as any,
+        }
+      : undefined,
+  }));
 
   return (
-    <div className="max-w-7xl mx-auto space-y-7 animate-in fade-in duration-300 min-w-0">
-      {/* Top Banner: Printed Editorial Invitation Banner */}
-      <div className="p-6 md:p-8 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 relative overflow-hidden">
-        {/* Subtle Decorative Botanical Flourish Background Accent */}
-        <div className="absolute right-4 -bottom-6 pointer-events-none opacity-20">
-          <OliveBranch className="w-36 h-36 text-sage-600" />
-        </div>
+    <div className="space-y-7 min-w-0 transition-all duration-300">
+      {/* 1. Dashboard Welcome Hero */}
+      <DashboardHero
+        hostName={profile?.fullName}
+        currentDate={currentDate}
+        hasEvents={events.length > 0}
+        onUploadExcel={() => setIsImportModalOpen(true)}
+        onCreateFunction={() => setIsWizardOpen(true)}
+      />
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2 font-sans">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-warm-100 text-charcoal-800 border border-warm-300/80">
-              <StarFlourish className="w-2.5 h-2.5 text-gold-600" />
-              <span>SAFAR Host Control</span>
-            </span>
-            <span className="text-xs text-charcoal-400 font-medium">
-              {currentDate.toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </span>
-          </div>
+      {/* 2. Real Database Summary KPI Cards */}
+      <KpiCards
+        stats={{
+          ...stats,
+          functionsCount: stats.functionsCount ?? events.length,
+        }}
+      />
 
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-charcoal-900 tracking-tight font-serif leading-tight">
-            {formatHostGreeting(profile?.fullName, currentDate)}
-          </h1>
-          <p className="mt-1 text-xs md:text-sm text-charcoal-600 max-w-xl font-sans">
-            Plan and manage every journey for your celebration with bespoke hospitality and live fleet control.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0 relative z-10">
-          {events.length > 0 && (
-            <button
-              onClick={() => setIsImportModalOpen(true)}
-              className="px-4 py-2.5 rounded-full border border-warm-300 bg-warm-50/80 hover:bg-warm-100 text-xs font-bold text-charcoal-800 flex items-center gap-2 shadow-2xs transition-all font-sans"
+      {/* 3. Functions & Events Section (Identical Card Structure) */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="Ceremonies & Functions"
+          subtitle="Distinct celebration milestones with dedicated guest rosters and chauffeur rules"
+          rightAction={
+            <Link
+              href="/host/events"
+              className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 font-sans transition-colors"
             >
-              <FileSpreadsheet className="w-4 h-4 text-terracotta-600" />
-              <span>Upload Guest Excel</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsWizardOpen(true)}
-            className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-warm-50 hover:text-white text-xs md:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 transition-all transform hover:-translate-y-0.5 font-sans"
-          >
-            <CalendarPlus className="w-4 h-4 text-gold-400" />
-            <span>Create Function</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Real Database KPI Metrics */}
-      <KpiCards stats={stats} />
-
-      {/* Function / Events Overview Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between border-b border-warm-200/80 pb-3">
-          <div className="flex items-center gap-2">
-            <StarFlourish className="w-3 h-3 text-gold-600" />
-            <h2 className="text-lg md:text-xl font-serif font-bold text-charcoal-900">
-              Ceremonies & Functions
-            </h2>
-            <span className="text-xs text-charcoal-400 font-sans hidden sm:inline">
-              — Distinct records with dedicated guest lists and transportation rules
-            </span>
-          </div>
-          <Link
-            href="/host/events"
-            className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 font-sans"
-          >
-            View All ({events.length})
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+              <span>View All ({events.length})</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          }
+        />
 
         {events.length === 0 ? (
-          <SafarEmptyState
+          <EmptyState
+            icon={<Calendar className="w-6 h-6 text-gold-600" />}
             title="No Functions Created Yet"
             description="Your celebration starts with your first ceremony. Create Sangeet, Mehndi, Haldi, Wedding Rituals, or Reception to begin allocating family transport."
             actionText="Plan Your First Function"
             onAction={() => setIsWizardOpen(true)}
           />
         ) : (
-          <HorizontalCardScroller gridCols="md:grid-cols-2 lg:grid-cols-3">
-            {events.slice(0, 6).map((ev) => {
-              const tr = ev.transportRequirements;
-              const badgeVariant = getFunctionBadgeVariant(ev.eventType);
-
-              return (
-                <div
-                  key={ev.id}
-                  className="p-5.5 rounded-3xl bg-white border border-[#E8E2D9] shadow-[0_8px_30px_-4px_rgba(70,50,40,0.06),0_2px_6px_-1px_rgba(70,50,40,0.03)] hover:shadow-[0_16px_36px_-6px_rgba(70,50,40,0.1)] hover:border-gold-400/60 active:scale-[0.985] transition-all flex flex-col justify-between h-full"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <SafarBadge variant={badgeVariant as any} size="sm">
-                        {ev.eventType || 'FUNCTION'}
-                      </SafarBadge>
-                      <span className="text-[11px] text-charcoal-400 font-mono">
-                        Code: {ev.joinCode}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="text-base font-serif font-bold text-charcoal-900 tracking-tight">
-                        {ev.name}
-                      </h3>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-charcoal-500 font-sans">
-                        <MapPin className="w-3.5 h-3.5 text-gold-600 shrink-0" />
-                        <span className="truncate">{ev.venueName || ev.city}</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-2xl bg-[#FDFBF7] border border-[#E8E2D9] grid grid-cols-2 gap-2 text-xs font-sans">
-                      <div>
-                        <span className="text-[10px] text-charcoal-400 font-medium block">Date & Time</span>
-                        <span className="font-semibold text-charcoal-800 truncate block">
-                          {new Date(ev.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                        <span className="text-[11px] text-charcoal-500">
-                          {ev.startTime ? `${ev.startTime} – ${ev.endTime || ''}` : 'Scheduled'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-charcoal-400 font-medium block">Guests & Fleet</span>
-                        <span className="font-semibold text-charcoal-800 block">
-                          {ev.guestCount || 0} Guests
-                        </span>
-                        <span className="text-[11px] text-terracotta-700 font-medium">
-                          {tr ? `${tr.numberOfVehicles || 1} ${tr.vehicleType || 'Vehicles'}` : 'Transport Ready'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-warm-100 flex items-center justify-between font-sans">
-                    <Link
-                      href={`/host/guests?eventId=${ev.id}`}
-                      className="text-xs font-bold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span>Guests ({ev.guestCount || 0})</span>
-                    </Link>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setActiveEvent(ev);
-                          setIsEditModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-full text-charcoal-400 hover:text-charcoal-800 hover:bg-warm-100 transition-colors"
-                        title="Edit Function"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <Link
-                        href={`/host/events?eventId=${ev.id}`}
-                        className="px-3.5 py-1 rounded-full bg-charcoal-900 text-white text-xs font-semibold hover:bg-charcoal-800 transition-colors shadow-2xs"
-                      >
-                        Manage
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </HorizontalCardScroller>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-w-0">
+            {events.slice(0, 6).map((ev) => (
+              <FunctionCard
+                key={ev.id}
+                event={{
+                  id: ev.id,
+                  name: ev.name,
+                  eventType: ev.eventType,
+                  venueName: ev.venueName,
+                  city: ev.city,
+                  startDate: ev.startDate,
+                  startTime: ev.startTime,
+                  endTime: ev.endTime,
+                  guestCount: ev.guestCount || 0,
+                  transportRequirements: ev.transportRequirements,
+                }}
+                onEdit={(item) => {
+                  setActiveEvent(ev);
+                  setIsEditModalOpen(true);
+                }}
+              />
+            ))}
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* Real-Time Access Requests Management */}
-      <AccessRequestsPanel />
+      {/* 4. Event Access Passcodes Presentation */}
+      <AccessCodeCard
+        eventName={activeEvent?.name || events[0]?.name || 'Master Wedding Celebration'}
+        driverCode={
+          activeEvent?.driverAccessCode ||
+          events[0]?.driverAccessCode ||
+          (activeEvent?.id ? `DRV${activeEvent.id.slice(-3).toUpperCase()}` : 'DRV849')
+        }
+        guestCode={
+          activeEvent?.guestAccessCode ||
+          activeEvent?.joinCode ||
+          events[0]?.guestAccessCode ||
+          events[0]?.joinCode ||
+          (activeEvent?.id ? `GST${activeEvent.id.slice(-3).toUpperCase()}` : 'GST26X')
+        }
+        onManageCodes={() => setIsCodesModalOpen(true)}
+      />
 
-      {/* Grid: Upcoming Trips & Fleet Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
-        <div className="lg:col-span-2">
-          <UpcomingTripsTable
-            trips={trips.map((t) => ({
-              id: t.id,
-              eventId: t.eventId,
-              originPlaceId: '',
-              destinationPlaceId: '',
-              scheduledPickupTime: t.scheduledPickupTime,
-              status: t.status as TripStatus,
-              origin: { name: t.originName, address: '', latitude: 0, longitude: 0, type: 'HOTEL', id: '', eventId: '' },
-              destination: { name: t.destinationName, address: '', latitude: 0, longitude: 0, type: 'VENUE', id: '', eventId: '' },
-              vehicle: t.vehicleModel ? { model: t.vehicleModel, plateNumber: t.vehiclePlate, id: '', accountId: '', category: 'SEDAN' as any, capacity: 4, isActive: true } : undefined,
-              driver: t.driverName ? { fullName: t.driverName, phoneNumber: t.driverPhone, id: '', accountId: '', userId: '', licenseNumber: '', dutyStatus: 'ON_DUTY' as any } : undefined,
-            }))}
-          />
-        </div>
+      {/* 5. Live Vehicle Tracking (Balanced 68% / 32% Two-Column Layout) */}
+      <section>
+        <LiveTrackingPanel />
+      </section>
 
-        <div className="space-y-4">
-          <LiveFleetMapCard />
-        </div>
-      </div>
+      {/* 6. Upcoming Guest Shuttles Table */}
+      <section>
+        <ShuttlePanel
+          trips={formattedTrips}
+          onCreateTrip={() => setIsWizardOpen(true)}
+        />
+      </section>
+
+      {/* 7. Real-Time Access Requests Management (Full-Width Card) */}
+      <section>
+        <AccessRequestsPanel eventId={activeEvent?.id} />
+      </section>
 
       {/* Modals */}
       <EventWizardModal
@@ -359,6 +316,15 @@ export default function HostDashboardPage() {
           eventName={activeEvent.name}
           onClose={() => setIsImportModalOpen(false)}
           onImportSuccess={fetchHostData}
+        />
+      )}
+
+      {activeEvent && (
+        <EventAccessCodesModal
+          isOpen={isCodesModalOpen}
+          event={activeEvent}
+          onClose={() => setIsCodesModalOpen(false)}
+          onCodesUpdated={fetchHostData}
         />
       )}
     </div>

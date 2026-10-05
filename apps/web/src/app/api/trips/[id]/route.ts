@@ -8,6 +8,7 @@ import {
   defaultRealtimeStateEngine,
   defaultAccessEngine,
 } from '../../../../lib/safar-engine';
+import { calculateTripPricing } from '../../../../lib/location-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,7 +157,7 @@ export async function PATCH(
 
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      include: { driver: true },
+      include: { driver: true, vehicle: true },
     });
 
     if (!trip) {
@@ -206,6 +207,12 @@ export async function PATCH(
       updateData.actualStartTime = now;
     } else if (newStatus === TripStatus.COMPLETED) {
       updateData.actualEndTime = now;
+      // Requirement 14: Final transportation cost must be based on actual distance
+      const pricing = calculateTripPricing({
+        actualDistanceKm: trip.actualDistanceKm || 0,
+        vehicleCategory: trip.vehicle?.category || 'SUV',
+      });
+      updateData.actualCost = pricing.totalCost;
     }
 
     const updatedTrip = await prisma.$transaction(async (tx) => {
@@ -252,6 +259,8 @@ export async function PATCH(
         {
           tripId,
           status: newStatus,
+          actualDistanceKm: trip.actualDistanceKm || 0,
+          actualCost: updateData.actualCost || trip.actualCost || undefined,
           lastUpdated: now.toISOString(),
         },
         { merge: true }

@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/db';
 import { getAuthenticatedHost, verifyEventOwnership } from '../../../../../lib/auth-server';
+import { generateUniqueEventAccessCodes } from '../../../../../lib/access-code';
 
 export const dynamic = 'force-dynamic';
-
-function generateJoinCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -22,12 +14,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const { event, errorResponse } = await verifyEventOwnership(eventId, context.account.id);
     if (errorResponse) return errorResponse;
 
-    let joinCode = generateJoinCode();
-    for (let i = 0; i < 5; i++) {
-      const existing = await prisma.event.findUnique({ where: { joinCode } });
-      if (!existing) break;
-      joinCode = generateJoinCode();
-    }
+    const { driverAccessCode, guestAccessCode } = await generateUniqueEventAccessCodes();
+    const joinCode = guestAccessCode;
+
+    // Fetch child functions under this event
+    const childFunctions = await prisma.function.findMany({
+      where: { eventId },
+    });
 
     const duplicated = await prisma.$transaction(async (tx: any) => {
       const newEvent = await tx.event.create({
@@ -50,6 +43,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           bannerUrl: event.bannerUrl,
           parentEventId: event.parentEventId,
           joinCode,
+          guestAccessCode,
+          driverAccessCode,
         },
       });
 
@@ -72,6 +67,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
       }
 
+      // Clone child functions under the new master event (no function codes!)
+      for (const fn of childFunctions) {
+        await tx.function.create({
+          data: {
+            eventId: newEvent.id,
+            name: fn.name,
+            date: fn.date,
+            startTime: fn.startTime,
+            endTime: fn.endTime,
+            venueName: fn.venueName,
+            venueAddress: fn.venueAddress,
+            guestRules: fn.guestRules,
+            transportRules: fn.transportRules,
+            description: fn.description,
+          },
+        });
+      }
+
       return newEvent;
     });
 
@@ -87,3 +100,4 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     );
   }
 }
+

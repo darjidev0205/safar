@@ -91,6 +91,7 @@ export default function GuestRidesPage() {
           driverHeading={trip.telemetry.heading || 0}
           breadcrumbs={trip.breadcrumbs}
           isLiveTracking={true}
+          lastPingAt={trip.telemetry.lastPingAt}
           className="w-full h-[280px] sm:h-[340px] md:h-[400px]"
         />
 

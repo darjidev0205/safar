@@ -46,9 +46,22 @@ export function EditorialNavbar({
   onLogout,
   getRoleDashboard,
 }: EditorialNavbarProps) {
-  const [isFloating, setIsFloating] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
+
+  // Hydration-safe desktop detection
+  useEffect(() => {
+    setMounted(true);
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop, { passive: true });
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
 
   // Lock body scroll and listen to Escape key when mobile menu is open
   useEffect(() => {
@@ -70,16 +83,27 @@ export function EditorialNavbar({
     }
   }, [mobileMenuOpen]);
 
-  // High-performance scroll listener with requestAnimationFrame
+  // High-performance continuous scroll listener with requestAnimationFrame
   useEffect(() => {
+    const MORPH_DISTANCE = 180; // Distance in pixels over which the full morph occurs
     let ticking = false;
+
+    // Check for user's reduced motion preference
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const currentY = window.scrollY;
-          // Float progressively past 20px
-          setIsFloating(currentY > 20);
+          const currentY = window.scrollY || window.pageYOffset || 0;
+          
+          if (prefersReducedMotion) {
+            setScrollProgress(currentY > 40 ? 1 : 0);
+          } else {
+            const progress = Math.min(Math.max(currentY / MORPH_DISTANCE, 0), 1);
+            setScrollProgress(progress);
+          }
 
           // Update active section
           const sections = ['events', 'functions', 'how-it-works', 'journey', 'hosts', 'families', 'guests', 'fleet'];
@@ -170,27 +194,57 @@ export function EditorialNavbar({
     onOpenAuth(UserRole.EVENT_ORGANIZER);
   };
 
+  // Continuous Desktop Interpolation Styles (derived from scroll progress p: 0 -> 1)
+  const p = scrollProgress;
+  const isMorphActive = mounted && isDesktop && p > 0;
+
+  const dynamicHeaderStyle: React.CSSProperties | undefined = isMorphActive
+    ? {
+        top: `${p * 14}px`,
+      }
+    : undefined;
+
+  const dynamicContainerStyle: React.CSSProperties | undefined = isMorphActive
+    ? {
+        width: `${100 - p * 8}%`,
+        maxWidth: `${Math.round(1800 - p * (1800 - 1152))}px`,
+        height: `${Math.round(80 - p * 16)}px`,
+        paddingLeft: `${Math.round(48 - p * 24)}px`,
+        paddingRight: `${Math.round(48 - p * 24)}px`,
+        borderRadius: p >= 0.98 ? '9999px' : `${Math.round(p * 32)}px`,
+        backgroundColor: `rgba(${Math.round(250 + p * 5)}, ${Math.round(247 + p * 8)}, ${Math.round(242 + p * 13)}, ${+(0.96 - p * 0.24).toFixed(3)})`,
+        backdropFilter: `blur(${Math.round(12 + p * 12)}px) saturate(${Math.round(100 + p * 35)}%)`,
+        WebkitBackdropFilter: `blur(${Math.round(12 + p * 12)}px) saturate(${Math.round(100 + p * 35)}%)`,
+        borderTopWidth: '1px',
+        borderLeftWidth: '1px',
+        borderRightWidth: '1px',
+        borderBottomWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: `rgba(229, 218, 203, ${+(0.4 + p * 0.4).toFixed(2)})`,
+        boxShadow: `0 ${Math.round(p * 10)}px ${Math.round(p * 30)}px -4px rgba(31, 36, 33, ${(p * 0.08).toFixed(3)}), 0 ${Math.round(p * 4)}px ${Math.round(p * 12)}px -2px rgba(31, 36, 33, ${(p * 0.03).toFixed(3)}), inset 0 1px 1px 0 rgba(255, 255, 255, ${(p * 0.95).toFixed(3)})`,
+        willChange: p < 1 ? 'width, max-width, height, border-radius, top, padding, box-shadow, background-color' : 'auto',
+      }
+    : undefined;
+
   return (
     <>
       {/* ========================================================================= */}
-      {/* 1. FIXED NAVBAR CONTAINER (MOBILE-FIRST ARCHITECTURE)                     */}
+      {/* 1. FIXED NAVBAR CONTAINER (CONTINUOUS DESKTOP SCROLL MORPH + MOBILE PILL) */}
       {/* ========================================================================= */}
       <header
         role="banner"
-        className="fixed inset-x-0 z-40 flex justify-center pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
-        style={{
-          top: isFloating ? 'max(env(safe-area-inset-top, 0px) + 8px, 12px)' : '0px',
-        }}
+        style={dynamicHeaderStyle}
+        className={`fixed inset-x-0 z-40 flex justify-center pointer-events-none top-2.5 sm:top-3.5 ${
+          !isMorphActive ? 'md:top-0' : ''
+        }`}
       >
         <div
-          className={`pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none flex items-center justify-between ${
-            isFloating
-              ? 'w-[calc(100%-2rem)] sm:w-[calc(100%-2.5rem)] md:w-[90%] lg:w-[84%] max-w-5xl lg:max-w-6xl h-14 sm:h-16 px-3.5 sm:px-6 rounded-full apple-glass-floating shadow-[0_10px_32px_-4px_rgba(31,36,33,0.08),0_2px_8px_0_rgba(31,36,33,0.02),inset_0_1px_1px_0_rgba(255,255,255,0.95)]'
-              : 'w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-3.5 sm:py-5 rounded-none bg-transparent border-b border-transparent'
+          style={dynamicContainerStyle}
+          className={`pointer-events-auto flex items-center justify-between ${
+            !isMorphActive
+              ? 'w-[calc(100%-1.5rem)] sm:w-[calc(100%-2.5rem)] md:w-full md:max-w-none h-14 sm:h-16 md:h-20 px-4 sm:px-6 md:px-12 rounded-full md:rounded-none apple-glass-floating md:bg-[#FAF7F2]/95 md:border-b md:border-[#E8E2D9]/80 md:shadow-none'
+              : ''
           }`}
-          style={{
-            paddingTop: isFloating ? undefined : 'max(env(safe-area-inset-top, 0px), 14px)',
-          }}
         >
           {/* Left: SAFAR Monogram & Wordmark */}
           <Link
@@ -199,10 +253,12 @@ export function EditorialNavbar({
             aria-label="SAFAR Home"
           >
             <SafarLogo
-              size={isFloating ? 'sm' : 'md'}
+              size="md"
               variant="editorial"
               showTagline={false}
-              className="transition-transform duration-300 group-hover:scale-[1.02]"
+              className={`transition-transform duration-300 group-hover:scale-[1.02] ${
+                isMorphActive && p > 0.6 ? 'scale-90 origin-left' : 'scale-100'
+              }`}
             />
           </Link>
 
@@ -237,12 +293,9 @@ export function EditorialNavbar({
           <div className="hidden md:flex items-center gap-2.5">
             {/* Join Event Button */}
             <button
+              type="button"
               onClick={handleJoinClick}
-              className={`px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
-                isFloating
-                  ? 'bg-white/80 hover:bg-white text-charcoal-800 border border-white/80 shadow-2xs active:scale-95'
-                  : 'bg-white/60 hover:bg-white text-charcoal-800 border border-charcoal-300/60 shadow-2xs active:scale-95'
-              }`}
+              className="px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 flex items-center gap-1.5 cursor-pointer bg-white/80 hover:bg-white text-charcoal-800 border border-[#D4C4B0] shadow-2xs active:scale-95"
               title="Enter digital guest pass code"
             >
               <KeyRound className="w-3.5 h-3.5 text-terracotta-600" />
@@ -260,6 +313,7 @@ export function EditorialNavbar({
                   <ArrowRight className="w-3.5 h-3.5 text-warm-300" />
                 </Link>
                 <button
+                  type="button"
                   onClick={onLogout}
                   className="p-2 rounded-full text-charcoal-500 hover:text-charcoal-900 hover:bg-white/60 transition-colors cursor-pointer"
                   title="Sign Out"
@@ -270,19 +324,19 @@ export function EditorialNavbar({
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleLoginClick}
-                  className="px-2.5 py-1.5 text-xs font-medium uppercase tracking-wider text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer"
+                <Link
+                  href="/login"
+                  className="px-2.5 py-1.5 text-xs font-medium uppercase tracking-wider text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer inline-flex items-center"
                 >
                   Login
-                </button>
-                <button
-                  onClick={handleStartPlanning}
+                </Link>
+                <Link
+                  href={authStatus === 'AUTHENTICATED' ? getRoleDashboard(role) : '/signup'}
                   className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 hover:from-terracotta-700 hover:to-terracotta-800 text-white text-xs font-bold tracking-wider uppercase shadow-xs flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                 >
                   <span>Start Planning</span>
                   <ArrowRight className="w-3.5 h-3.5 text-warm-200" />
-                </button>
+                </Link>
               </div>
             )}
           </div>
@@ -290,6 +344,7 @@ export function EditorialNavbar({
           {/* Right: Mobile Menu Button (Minimal 44x44px Touch Target) */}
           <div className="flex md:hidden items-center">
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(true)}
               className="min-w-[44px] min-h-[44px] p-2.5 rounded-full text-charcoal-800 hover:bg-white/60 active:bg-white/80 transition-colors flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-terracotta-500 cursor-pointer"
               aria-label="Open navigation menu"
@@ -427,19 +482,21 @@ export function EditorialNavbar({
               </div>
             ) : (
               <div className="space-y-3">
-                <button
-                  onClick={handleStartPlanning}
+                <Link
+                  href={authStatus === 'AUTHENTICATED' ? getRoleDashboard(role) : '/signup'}
+                  onClick={() => setMobileMenuOpen(false)}
                   className="w-full py-3.5 rounded-full bg-gradient-to-r from-terracotta-600 to-terracotta-700 text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-transform cursor-pointer"
                 >
                   <span>Start Planning</span>
                   <ArrowRight className="w-4 h-4 text-warm-200" />
-                </button>
-                <button
-                  onClick={handleLoginClick}
-                  className="w-full py-2 text-center text-xs font-medium tracking-wider uppercase text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer"
+                </Link>
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full py-2 text-center text-xs font-medium tracking-wider uppercase text-charcoal-600 hover:text-charcoal-900 transition-colors cursor-pointer block"
                 >
                   Login to Existing Account
-                </button>
+                </Link>
               </div>
             )}
 

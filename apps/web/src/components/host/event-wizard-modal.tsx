@@ -17,7 +17,12 @@ import {
   Building,
   Navigation,
   FileText,
-  Image as ImageIcon,
+  Copy,
+  Check,
+  RefreshCw,
+  Plus,
+  Trash2,
+  Key,
 } from 'lucide-react';
 import { useAuth } from '../../context/auth-context';
 import { SafarButton } from '../ui/safar-design-system';
@@ -30,56 +35,43 @@ interface EventWizardModalProps {
   parentEventId?: string | null;
 }
 
-const FUNCTION_PRESETS = [
-  {
-    type: 'SANGEET',
-    name: 'Sangeet Night',
-    desc: 'Musical evening, dance performances, and family dinner celebration',
-    defaultStart: '19:00',
-    defaultEnd: '23:00',
-    badge: 'bg-gold-100 text-gold-900 border border-gold-200',
-  },
-  {
-    type: 'MEHNDI',
-    name: 'Mehndi Ceremony',
-    desc: 'Traditional henna application ceremony with lunch and folk singing',
-    defaultStart: '11:00',
-    defaultEnd: '15:00',
-    badge: 'bg-sage-100 text-sage-900 border border-sage-200',
-  },
-  {
-    type: 'HALDI',
-    name: 'Haldi Function',
-    desc: 'Auspicious turmeric ceremony with close family rituals',
-    defaultStart: '09:00',
-    defaultEnd: '12:00',
-    badge: 'bg-amber-100 text-amber-900 border border-amber-200',
-  },
-  {
-    type: 'WEDDING',
-    name: 'Wedding Ceremony',
-    desc: 'Grand wedding rituals, varmala, and reception of baraat',
-    defaultStart: '18:00',
-    defaultEnd: '23:30',
-    badge: 'bg-terracotta-100 text-terracotta-900 border border-terracotta-200',
-  },
-  {
-    type: 'RECEPTION',
-    name: 'Wedding Reception',
-    desc: 'Formal banquet, photography session, and greetings with attendees',
-    defaultStart: '20:00',
-    defaultEnd: '00:00',
-    badge: 'bg-burgundy-100 text-burgundy-900 border border-burgundy-200',
-  },
-  {
-    type: 'CUSTOM',
-    name: 'Custom Function',
-    desc: 'Bespoke event, pool party, cocktail night, or conference',
-    defaultStart: '16:00',
-    defaultEnd: '20:00',
-    badge: 'bg-warm-100 text-charcoal-800 border border-warm-300',
-  },
+export interface WizardFunctionItem {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  venueName: string;
+  venueAddress: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  description: string;
+}
+
+const PREDEFINED_FUNCTION_TYPES = [
+  { type: 'MEHENDI', label: 'Mehendi', defaultTime: '11:00', endDefault: '15:00', badge: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { type: 'HALDI', label: 'Haldi', defaultTime: '09:30', endDefault: '12:30', badge: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { type: 'SANGEET', label: 'Sangeet', defaultTime: '19:00', endDefault: '23:30', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { type: 'WEDDING', label: 'Wedding Ceremony', defaultTime: '18:00', endDefault: '23:30', badge: 'bg-rose-50 text-rose-800 border-rose-200' },
+  { type: 'RECEPTION', label: 'Reception', defaultTime: '19:30', endDefault: '00:00', badge: 'bg-purple-50 text-purple-800 border-purple-200' },
+  { type: 'ENGAGEMENT', label: 'Engagement', defaultTime: '17:00', endDefault: '21:00', badge: 'bg-blue-50 text-blue-800 border-blue-200' },
+  { type: 'PHERAS', label: 'Pheras', defaultTime: '23:00', endDefault: '03:00', badge: 'bg-red-50 text-red-800 border-red-200' },
+  { type: 'VIDAAI', label: 'Vidaai', defaultTime: '04:00', endDefault: '06:00', badge: 'bg-orange-50 text-orange-800 border-orange-200' },
+  { type: 'BRUNCH', label: 'Family Brunch', defaultTime: '10:00', endDefault: '13:00', badge: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { type: 'DINNER', label: 'Welcome Dinner', defaultTime: '20:00', endDefault: '23:00', badge: 'bg-stone-50 text-stone-800 border-stone-200' },
+  { type: 'CUSTOM', label: 'Custom Function', defaultTime: '16:00', endDefault: '20:00', badge: 'bg-neutral-50 text-neutral-800 border-neutral-200' },
 ];
+
+function generateRandomCode(prefix: string = ''): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = prefix;
+  while (result.length < 6) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 export function EventWizardModal({
   isOpen,
@@ -88,119 +80,188 @@ export function EventWizardModal({
   parentEventId,
 }: EventWizardModalProps) {
   const { profile } = useAuth();
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // STEP 1: Event Details
-  const [eventType, setEventType] = useState('SANGEET');
-  const [name, setName] = useState('Sangeet');
-  const [date, setDate] = useState(() => {
+  const [name, setName] = useState('Rahul & Priya Wedding');
+  const [description, setDescription] = useState(
+    'Celebration of holy matrimony with family ceremonies, hospitality, and coordinated guest transportation.'
+  );
+  const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
     return d.toISOString().substring(0, 10);
   });
-  const [startTime, setStartTime] = useState('19:00');
-  const [endTime, setEndTime] = useState('23:00');
-  const [venueName, setVenueName] = useState('Grand Bhagwati');
-  const [venueAddress, setVenueAddress] = useState('SG Highway, Bodakdev');
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 17);
+    return d.toISOString().substring(0, 10);
+  });
   const [city, setCity] = useState('Ahmedabad');
-  const [venueLatitude, setVenueLatitude] = useState('23.0489');
-  const [venueLongitude, setVenueLongitude] = useState('72.5085');
-  const [expectedGuestCount, setExpectedGuestCount] = useState('128');
-  const [description, setDescription] = useState(
-    'Celebration evening with family musical performances and dinner banquet.'
-  );
-  const [bannerUrl, setBannerUrl] = useState('');
+  const [venueName, setVenueName] = useState('The Grand Bhagwati & Hyatt Regency');
+  const [venueAddress, setVenueAddress] = useState('SG Highway, Bodakdev, Ahmedabad');
+  const [venueLatitude, setVenueLatitude] = useState<number | undefined>(23.0395);
+  const [venueLongitude, setVenueLongitude] = useState<number | undefined>(72.5085);
+  const [venuePlaceId, setVenuePlaceId] = useState<string | undefined>('ChIJ_SG_Hwy');
 
-  // STEP 2: Event Transport Requirements
-  const [pickupRequired, setPickupRequired] = useState(true);
-  const [dropRequired, setDropRequired] = useState(true);
-  const [pickupLocation, setPickupLocation] = useState('Hyatt Regency & Airport');
-  const [dropLocation, setDropLocation] = useState('Grand Bhagwati, SG Highway');
-  const [pickupDate, setPickupDate] = useState(date);
-  const [pickupTime, setPickupTime] = useState('17:30');
-  const [vehicleType, setVehicleType] = useState('Sedan');
-  const [numberOfVehicles, setNumberOfVehicles] = useState('6');
-  const [specialInstructions, setSpecialInstructions] = useState(
-    'Coordinate shuttles for elderly guests directly to banquet hall entrance.'
-  );
+  // STEP 2: Functions
+  const [functions, setFunctions] = useState<WizardFunctionItem[]>([
+    {
+      id: 'fn-1',
+      name: 'Mehendi Ceremony',
+      type: 'MEHENDI',
+      date: startDate,
+      startTime: '11:00',
+      endTime: '15:00',
+      venueName: 'Hyatt Regency Poolside',
+      venueAddress: 'Ashram Road, Ahmedabad',
+      description: 'Henna ceremony, folk music, and lunch banquet.',
+    },
+    {
+      id: 'fn-2',
+      name: 'Sangeet Evening',
+      type: 'SANGEET',
+      date: startDate,
+      startTime: '19:00',
+      endTime: '23:30',
+      venueName: 'The Grand Bhagwati Grand Ballroom',
+      venueAddress: 'SG Highway, Bodakdev, Ahmedabad',
+      description: 'Musical performances, family dance, and dinner celebration.',
+    },
+    {
+      id: 'fn-3',
+      name: 'Haldi Rituals',
+      type: 'HALDI',
+      date: endDate,
+      startTime: '09:30',
+      endTime: '12:30',
+      venueName: 'Hyatt Regency Terrace Lawn',
+      venueAddress: 'Ashram Road, Ahmedabad',
+      description: 'Turmeric ceremony with close family.',
+    },
+    {
+      id: 'fn-4',
+      name: 'Wedding Ceremony & Varmala',
+      type: 'WEDDING',
+      date: endDate,
+      startTime: '18:00',
+      endTime: '23:30',
+      venueName: 'The Celebration Lawn',
+      venueAddress: 'Sindhu Bhavan Road, Ahmedabad',
+      description: 'Baraat arrival, varmala, and reception banquet.',
+    },
+  ]);
 
-  // Real Fleet Availability
-  const [fleetData, setFleetData] = useState<{
-    totalVehicles: number;
-    totalDrivers: number;
-    availableVehiclesCount: number;
-    availableDriversCount: number;
-    vehicles: any[];
-    drivers: any[];
-  } | null>(null);
-  const [loadingFleet, setLoadingFleet] = useState(false);
+  // Adding Function Drawer / Inline Form State
+  const [isAddingFunction, setIsAddingFunction] = useState(false);
+  const [newFnType, setNewFnType] = useState('CUSTOM');
+  const [newFnName, setNewFnName] = useState('');
+  const [newFnDate, setNewFnDate] = useState(startDate);
+  const [newFnStartTime, setNewFnStartTime] = useState('16:00');
+  const [newFnEndTime, setNewFnEndTime] = useState('20:00');
+  const [newFnVenue, setNewFnVenue] = useState('');
+  const [newFnAddress, setNewFnAddress] = useState('');
+  const [newFnLatitude, setNewFnLatitude] = useState<number | undefined>(undefined);
+  const [newFnLongitude, setNewFnLongitude] = useState<number | undefined>(undefined);
+  const [newFnPlaceId, setNewFnPlaceId] = useState<string | undefined>(undefined);
+  const [newFnDescription, setNewFnDescription] = useState('');
 
-  // Fetch real fleet availability from host database
+  // STEP 3: Access Codes (1 Guest Code + 1 Driver Code)
+  const [guestCode, setGuestCode] = useState(() => generateRandomCode('RP'));
+  const [driverCode, setDriverCode] = useState(() => generateRandomCode('DR'));
+  const [copiedGuest, setCopiedGuest] = useState(false);
+  const [copiedDriver, setCopiedDriver] = useState(false);
+
   useEffect(() => {
-    if (isOpen) {
-      setLoadingFleet(true);
-      const token =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
-          : '';
-
-      fetch('/api/host/fleet', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-user-email': profile?.email || '',
-        },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.success && data.fleet) {
-            setFleetData(data.fleet);
-          }
-        })
-        .catch((err) => console.warn('Could not load fleet:', err))
-        .finally(() => setLoadingFleet(false));
-    }
-  }, [isOpen, profile]);
+    if (newFnDate < startDate) setNewFnDate(startDate);
+  }, [startDate]);
 
   if (!isOpen) return null;
 
-  const handleSelectPreset = (preset: (typeof FUNCTION_PRESETS)[0]) => {
-    setEventType(preset.type);
-    setName(preset.name);
-    setStartTime(preset.defaultStart);
-    setEndTime(preset.defaultEnd);
-    setDescription(preset.desc);
+  const handleCopy = (text: string, type: 'guest' | 'driver') => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      if (type === 'guest') {
+        setCopiedGuest(true);
+        setTimeout(() => setCopiedGuest(false), 2000);
+      } else {
+        setCopiedDriver(true);
+        setTimeout(() => setCopiedDriver(false), 2000);
+      }
+    }
+  };
+
+  const handleAddFunctionSubmit = () => {
+    if (!newFnName.trim()) {
+      setErrorMsg('Please enter a name for the function.');
+      return;
+    }
+    setErrorMsg(null);
+
+    const newItem: WizardFunctionItem = {
+      id: `fn-${Date.now()}`,
+      name: newFnName.trim(),
+      type: newFnType,
+      date: newFnDate || startDate,
+      startTime: newFnStartTime || '18:00',
+      endTime: newFnEndTime || '22:00',
+      venueName: newFnVenue.trim() || venueName,
+      venueAddress: newFnAddress.trim() || venueAddress,
+      latitude: newFnLatitude || venueLatitude,
+      longitude: newFnLongitude || venueLongitude,
+      placeId: newFnPlaceId || venuePlaceId,
+      description: newFnDescription.trim(),
+    };
+
+    setFunctions((prev) => [...prev, newItem]);
+    setIsAddingFunction(false);
+    setNewFnName('');
+    setNewFnVenue('');
+    setNewFnAddress('');
+    setNewFnLatitude(undefined);
+    setNewFnLongitude(undefined);
+    setNewFnPlaceId(undefined);
+    setNewFnDescription('');
+  };
+
+  const handleRemoveFunction = (id: string) => {
+    if (functions.length <= 1) {
+      setErrorMsg('An event must have at least one function.');
+      return;
+    }
+    setFunctions((prev) => prev.filter((f) => f.id !== id));
   };
 
   const handleNext = () => {
     setErrorMsg(null);
     if (currentStep === 1) {
       if (!name.trim()) {
-        setErrorMsg('Please provide an Event or Function Name.');
+        setErrorMsg('Please provide an Event Name.');
         return;
       }
-      if (!date) {
-        setErrorMsg('Please choose the event date.');
+      if (!startDate || !endDate) {
+        setErrorMsg('Please specify start and end dates.');
         return;
       }
-      if (!venueName.trim()) {
-        setErrorMsg('Please enter the venue name.');
+      if (new Date(endDate) < new Date(startDate)) {
+        setErrorMsg('End date cannot precede start date.');
         return;
       }
-      if (!city.trim()) {
-        setErrorMsg('Please specify the city.');
-        return;
-      }
-      // sync transport pickup date with event date
-      setPickupDate(date);
       setCurrentStep(2);
     } else if (currentStep === 2) {
+      if (functions.length === 0) {
+        setErrorMsg('Please configure at least one function for this event.');
+        return;
+      }
       setCurrentStep(3);
+    } else if (currentStep === 3) {
+      setCurrentStep(4);
     }
   };
 
-  const handleCreateFunction = async () => {
+  const handleCreateEvent = async () => {
     setSubmitting(true);
     setErrorMsg(null);
 
@@ -212,30 +273,29 @@ export function EventWizardModal({
 
       const payload = {
         name: name.trim(),
-        type: eventType,
-        date,
-        startTime,
-        endTime,
+        description: description.trim(),
+        startDate,
+        endDate,
+        city: city.trim(),
         venueName: venueName.trim(),
         venueAddress: venueAddress.trim(),
-        city: city.trim(),
-        venueLatitude: venueLatitude ? parseFloat(venueLatitude) : null,
-        venueLongitude: venueLongitude ? parseFloat(venueLongitude) : null,
-        expectedGuestCount: parseInt(expectedGuestCount, 10) || 0,
-        description: description.trim(),
-        bannerUrl: bannerUrl.trim() || undefined,
+        venueLatitude: venueLatitude || undefined,
+        venueLongitude: venueLongitude || undefined,
+        guestAccessCode: guestCode.trim().toUpperCase(),
+        driverAccessCode: driverCode.trim().toUpperCase(),
         parentEventId: parentEventId || undefined,
-        transportRequirements: {
-          pickupRequired,
-          dropRequired,
-          pickupLocation: pickupLocation.trim(),
-          dropLocation: dropLocation.trim(),
-          pickupDate,
-          pickupTime,
-          vehicleType,
-          numberOfVehicles: parseInt(numberOfVehicles, 10) || 1,
-          specialInstructions: specialInstructions.trim(),
-        },
+        functions: functions.map((f) => ({
+          name: f.name,
+          type: f.type,
+          date: f.date,
+          startTime: f.startTime,
+          endTime: f.endTime,
+          venueName: f.venueName,
+          venueAddress: f.venueAddress,
+          latitude: f.latitude || venueLatitude || undefined,
+          longitude: f.longitude || venueLongitude || undefined,
+          description: f.description,
+        })),
       };
 
       const res = await fetch('/api/events', {
@@ -258,7 +318,7 @@ export function EventWizardModal({
       onCreated(data.event);
       onClose();
     } catch (err: any) {
-      console.error('Error creating function:', err);
+      console.error('Error creating master event:', err);
       setErrorMsg(err.message || 'An unexpected error occurred while saving.');
     } finally {
       setSubmitting(false);
@@ -273,16 +333,17 @@ export function EventWizardModal({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-900 bg-terracotta-100/70 px-2.5 py-0.5 rounded-full border border-terracotta-200 font-sans">
-                Ceremonial Planning
+                Event Architecture
               </span>
               <span className="text-xs text-charcoal-400 font-sans">
-                Step {currentStep} of 3
+                Step {currentStep} of 4
               </span>
             </div>
             <h2 className="text-lg sm:text-xl font-serif font-bold text-charcoal-900 mt-1">
-              {currentStep === 1 && 'Function Details & Venue'}
-              {currentStep === 2 && 'Ceremonial Transport Strategy'}
-              {currentStep === 3 && 'Review & Confirm Function'}
+              {currentStep === 1 && 'Step 1: Event Details & Schedule'}
+              {currentStep === 2 && 'Step 2: Functions & Ceremonies'}
+              {currentStep === 3 && 'Step 3: Event Access Credentials'}
+              {currentStep === 4 && 'Step 4: Review & Launch Event'}
             </h2>
           </div>
 
@@ -294,11 +355,11 @@ export function EventWizardModal({
           </button>
         </div>
 
-        {/* Progress Bar with SAFAR Terracotta gradient */}
+        {/* Progress Bar */}
         <div className="w-full bg-warm-100 h-1">
           <div
             className="bg-terracotta-600 h-1 transition-all duration-300"
-            style={{ width: `${(currentStep / 3) * 100}%` }}
+            style={{ width: `${(currentStep / 4) * 100}%` }}
           />
         </div>
 
@@ -311,53 +372,59 @@ export function EventWizardModal({
             </div>
           )}
 
-          {/* STEP 1: Function Details */}
+          {/* STEP 1: Event Details */}
           {currentStep === 1 && (
-            <div className="space-y-6">
-              {/* Function Presets */}
+            <div className="space-y-5">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-charcoal-600 mb-2 font-sans">
-                  Select Function Type
+                <label className="block text-xs font-bold uppercase tracking-wider text-charcoal-600 mb-1 font-sans">
+                  Event Name *
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {FUNCTION_PRESETS.map((preset) => {
-                    const isSelected = eventType === preset.type;
-                    return (
-                      <button
-                        key={preset.type}
-                        type="button"
-                        onClick={() => handleSelectPreset(preset)}
-                        className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                          isSelected
-                            ? 'border-terracotta-600 bg-terracotta-50/50 ring-2 ring-terracotta-500/20 shadow-2xs'
-                            : 'border-warm-200 hover:border-warm-300 bg-white hover:bg-warm-50/50'
-                        }`}
-                      >
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit mb-1 ${preset.badge}`}>
-                          {preset.type}
-                        </span>
-                        <div className="font-serif font-bold text-sm text-charcoal-900 truncate">
-                          {preset.name}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Rahul & Priya Wedding"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-sm font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
+                />
               </div>
 
-              {/* Event Name & City */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Summary of the grand celebration and guest hospitality instructions..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Event / Function Name *
+                    Start Date *
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Sangeet Celebration"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                    End Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -369,398 +436,420 @@ export function EventWizardModal({
                     required
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    placeholder="e.g. Ahmedabad"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
+                    placeholder="Ahmedabad"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Date & Times */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Start Time *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    End Time *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Venue Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Venue Name *
+                    Primary Venue / Hotel Hub
                   </label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 text-charcoal-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      required
-                      value={venueName}
-                      onChange={(e) => setVenueName(e.target.value)}
-                      placeholder="e.g. Grand Bhagwati"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:border-terracotta-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Expected Guest Count
-                  </label>
-                  <div className="relative">
-                    <Users className="w-4 h-4 text-charcoal-400 absolute left-3 top-3" />
-                    <input
-                      type="number"
-                      min="1"
-                      value={expectedGuestCount}
-                      onChange={(e) => setExpectedGuestCount(e.target.value)}
-                      placeholder="128"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Venue Location Search (Google Places) */}
-              <div>
-                <PlaceAutocomplete
-                  label="Venue Address (Google Places Search) *"
-                  placeholder="Search venue, hotel, banquet hall…"
-                  defaultValue={venueAddress}
-                  icon={<MapPin className="w-4 h-4" />}
-                  onPlaceSelect={(place: PlaceResult) => {
-                    setVenueAddress(place.address);
-                    setVenueLatitude(String(place.latitude));
-                    setVenueLongitude(String(place.longitude));
-                    if (!venueName.trim() || venueName === 'Grand Bhagwati') {
-                      setVenueName(place.name);
-                    }
-                  }}
-                  onClear={() => {
-                    setVenueAddress('');
-                    setVenueLatitude('');
-                    setVenueLongitude('');
-                  }}
-                />
-                {venueLatitude && venueLongitude && (
-                  <p className="text-[10px] text-emerald-700 font-medium mt-1 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Coordinates saved: {parseFloat(venueLatitude).toFixed(4)}° N, {parseFloat(venueLongitude).toFixed(4)}° E
-                  </p>
-                )}
-              </div>
-
-              {/* Description & Cover Image */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Event Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Add details, instructions for guests, or program schedule..."
+                  <input
+                    type="text"
+                    value={venueName}
+                    onChange={(e) => setVenueName(e.target.value)}
+                    placeholder="e.g. Grand Bhagwati / Hyatt"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Cover Image URL (Optional)
-                  </label>
-                  <div className="relative">
-                    <ImageIcon className="w-4 h-4 text-charcoal-400 absolute left-3 top-3" />
-                    <input
-                      type="url"
-                      value={bannerUrl}
-                      onChange={(e) => setBannerUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                    />
-                  </div>
+                  <PlaceAutocomplete
+                    label="Venue Address (Google Maps)"
+                    placeholder="Search hotel, resort, palace, or address…"
+                    defaultValue={venueAddress}
+                    onPlaceSelect={(place) => {
+                      setVenueAddress(place.address || place.name);
+                      if (place.name && (!venueName || venueName === 'The Grand Bhagwati & Hyatt Regency')) {
+                        setVenueName(place.name);
+                      }
+                      setVenueLatitude(place.latitude);
+                      setVenueLongitude(place.longitude);
+                      setVenuePlaceId(place.placeId);
+                    }}
+                  />
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 2: Transport Requirements */}
+          {/* STEP 2: Functions & Ceremonies */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              {/* Real Fleet Availability Status Banner */}
-              <div className="p-4 rounded-2xl bg-warm-100/70 border border-warm-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-terracotta-600 text-white flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-5 h-5" />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-charcoal-700">
+                    Ceremonies & Functions ({functions.length})
+                  </h3>
+                  <p className="text-[11px] text-charcoal-500">
+                    Each function has its own schedule and venue. All belong to this single master event.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingFunction(!isAddingFunction)}
+                  className="px-3 py-1.5 rounded-xl bg-terracotta-50 text-terracotta-900 border border-terracotta-200 text-xs font-bold flex items-center gap-1.5 hover:bg-terracotta-100 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Function
+                </button>
+              </div>
+
+              {/* Add Function Drawer/Form */}
+              {isAddingFunction && (
+                <div className="p-4 rounded-2xl bg-warm-50 border border-warm-300 space-y-3.5 animate-in fade-in">
+                  <div className="flex items-center justify-between pb-2 border-b border-warm-200">
+                    <span className="text-xs font-bold text-charcoal-900 uppercase tracking-wider">
+                      New Function Configuration
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingFunction(false)}
+                      className="text-xs text-charcoal-400 hover:text-charcoal-600"
+                    >
+                      Cancel
+                    </button>
                   </div>
+
                   <div>
-                    <h4 className="text-xs font-bold text-charcoal-900">
-                      Host Fleet Verification
-                    </h4>
-                    <p className="text-[11px] text-charcoal-600">
-                      {loadingFleet
-                        ? 'Checking host vehicle and driver roster in database...'
-                        : fleetData && fleetData.totalVehicles > 0
-                        ? `${fleetData.totalVehicles} vehicle(s) & ${fleetData.totalDrivers} driver(s) registered in your host account`
-                        : 'No vehicles added yet. You can still set requirements and assign vehicles later.'}
-                    </p>
+                    <label className="block text-[11px] font-bold text-charcoal-600 mb-1.5">
+                      Function Type
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PREDEFINED_FUNCTION_TYPES.map((pt) => (
+                        <button
+                          key={pt.type}
+                          type="button"
+                          onClick={() => {
+                            setNewFnType(pt.type);
+                            if (!newFnName || PREDEFINED_FUNCTION_TYPES.some((p) => p.label === newFnName)) {
+                              setNewFnName(pt.label);
+                            }
+                            setNewFnStartTime(pt.defaultTime);
+                            setNewFnEndTime(pt.endDefault);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            newFnType === pt.type
+                              ? 'bg-terracotta-600 text-white border-terracotta-600 shadow-2xs'
+                              : 'bg-white text-charcoal-700 border-warm-200 hover:border-warm-300'
+                          }`}
+                        >
+                          {pt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                {fleetData && fleetData.totalVehicles > 0 && (
-                  <span className="text-[11px] font-bold text-terracotta-900 bg-white/90 px-2.5 py-1 rounded-lg border border-warm-200">
-                    Active Fleet Ready
-                  </span>
-                )}
-              </div>
 
-              {/* Pickup & Drop Toggles */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div
-                  onClick={() => setPickupRequired(!pickupRequired)}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    pickupRequired
-                      ? 'border-terracotta-600 bg-terracotta-50/40 ring-1 ring-terracotta-500'
-                      : 'border-warm-200 hover:border-warm-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${pickupRequired ? 'bg-terracotta-600 text-white' : 'bg-warm-100 text-charcoal-500'}`}>
-                      <Navigation className="w-4 h-4" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
+                        Function Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newFnName}
+                        onChange={(e) => setNewFnName(e.target.value)}
+                        placeholder="e.g. Sangeet Celebration"
+                        className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                      />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-charcoal-900">Guest Pickup Required</div>
-                      <div className="text-[11px] text-charcoal-500">Pick up guests from airport, hotels, or residences</div>
+                      <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newFnDate}
+                        onChange={(e) => setNewFnDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                      />
                     </div>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pickupRequired ? 'bg-terracotta-600 text-white' : 'bg-warm-200 text-charcoal-600'}`}>
-                    {pickupRequired ? 'YES' : 'NO'}
-                  </span>
-                </div>
 
-                <div
-                  onClick={() => setDropRequired(!dropRequired)}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    dropRequired
-                      ? 'border-terracotta-600 bg-terracotta-50/40 ring-1 ring-terracotta-500'
-                      : 'border-warm-200 hover:border-warm-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dropRequired ? 'bg-terracotta-600 text-white' : 'bg-warm-100 text-charcoal-500'}`}>
-                      <Navigation className="w-4 h-4 rotate-180" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
+                        Start Time
+                      </label>
+                      <input
+                        type="time"
+                        value={newFnStartTime}
+                        onChange={(e) => setNewFnStartTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                      />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-charcoal-900">Guest Return / Drop Required</div>
-                      <div className="text-[11px] text-charcoal-500">Drop guests back to hotel, airport, or stations</div>
+                      <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
+                        End Time
+                      </label>
+                      <input
+                        type="time"
+                        value={newFnEndTime}
+                        onChange={(e) => setNewFnEndTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                      />
                     </div>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${dropRequired ? 'bg-terracotta-600 text-white' : 'bg-warm-200 text-charcoal-600'}`}>
-                    {dropRequired ? 'YES' : 'NO'}
-                  </span>
-                </div>
-              </div>
 
-              {/* Pickup & Drop Locations */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Pickup Location
-                  </label>
-                  <input
-                    type="text"
-                    value={pickupLocation}
-                    onChange={(e) => setPickupLocation(e.target.value)}
-                    placeholder="e.g. Hyatt Regency, Airport Terminal 1"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Drop Location
-                  </label>
-                  <input
-                    type="text"
-                    value={dropLocation}
-                    onChange={(e) => setDropLocation(e.target.value)}
-                    placeholder="e.g. Grand Bhagwati Banquet"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-charcoal-700 mb-1">
+                        Venue Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newFnVenue}
+                        onChange={(e) => setNewFnVenue(e.target.value)}
+                        placeholder={venueName || 'Banquet / Lawn'}
+                        className="w-full px-3 py-2 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <PlaceAutocomplete
+                        label="Venue Address (Google Maps)"
+                        placeholder="Search ceremony lawn, banquet, or address…"
+                        defaultValue={newFnAddress}
+                        onPlaceSelect={(place) => {
+                          setNewFnAddress(place.address || place.name);
+                          if (place.name && !newFnVenue) {
+                            setNewFnVenue(place.name);
+                          }
+                          setNewFnLatitude(place.latitude);
+                          setNewFnLongitude(place.longitude);
+                          setNewFnPlaceId(place.placeId);
+                        }}
+                      />
+                    </div>
+                  </div>
 
-              {/* Pickup Date & Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Pickup Date
-                  </label>
-                  <input
-                    type="date"
-                    value={pickupDate}
-                    onChange={(e) => setPickupDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Pickup Time
-                  </label>
-                  <input
-                    type="time"
-                    value={pickupTime}
-                    onChange={(e) => setPickupTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Vehicle Type & Count */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Preferred Vehicle Type
-                  </label>
-                  <select
-                    value={vehicleType}
-                    onChange={(e) => setVehicleType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium bg-white focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                  >
-                    <option value="Sedan">Sedan (4 Seater)</option>
-                    <option value="SUV">SUV (6-7 Seater)</option>
-                    <option value="Tempo Traveller">Tempo Traveller (12-17 Seater)</option>
-                    <option value="Mini Bus">Mini Bus (20-30 Seater)</option>
-                    <option value="Bus">Large Bus (40+ Seater)</option>
-                    <option value="Other">Other / VIP Luxury</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                    Number of Vehicles Required
-                  </label>
-                  <div className="relative">
-                    <Car className="w-4 h-4 text-charcoal-400 absolute left-3 top-3" />
-                    <input
-                      type="number"
-                      min="1"
-                      value={numberOfVehicles}
-                      onChange={(e) => setNumberOfVehicles(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                    />
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddFunctionSubmit}
+                      className="px-4 py-2 rounded-xl bg-terracotta-600 text-white text-xs font-bold hover:bg-terracotta-700 transition-colors shadow-2xs"
+                    >
+                      Add Ceremony to Event
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Special Transportation Instructions */}
-              <div>
-                <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                  Special Transportation Instructions
-                </label>
-                <textarea
-                  rows={2}
-                  value={specialInstructions}
-                  onChange={(e) => setSpecialInstructions(e.target.value)}
-                  placeholder="e.g. VIP guest arrival timings, luggage van requirements, specific driver assignments..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-warm-200 text-xs font-medium focus:ring-2 focus:ring-terracotta-500 focus:outline-none"
-                />
+              {/* Function Cards List */}
+              <div className="space-y-2.5 max-h-[38vh] overflow-y-auto pr-1">
+                {functions.map((fn, idx) => {
+                  const pt = PREDEFINED_FUNCTION_TYPES.find((p) => p.type === fn.type);
+                  return (
+                    <div
+                      key={fn.id}
+                      className="p-3.5 rounded-2xl border border-warm-200 bg-white hover:border-warm-300 transition-all flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-warm-100 flex items-center justify-center shrink-0 font-serif font-bold text-xs text-charcoal-800">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif font-bold text-sm text-charcoal-900 truncate">
+                              {fn.name}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${pt?.badge || 'bg-warm-100 text-charcoal-700 border-warm-200'}`}>
+                              {fn.type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-charcoal-500 mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-terracotta-600" />
+                              {fn.date}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-terracotta-600" />
+                              {fn.startTime} – {fn.endTime}
+                            </span>
+                            <span className="flex items-center gap-1 truncate">
+                              <MapPin className="w-3 h-3 text-terracotta-600 shrink-0" />
+                              <span className="truncate">{fn.venueName}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFunction(fn.id)}
+                        className="p-2 text-charcoal-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors shrink-0"
+                        title="Remove Function"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* STEP 3: Review & Confirm */}
+          {/* STEP 3: Access Credentials */}
           {currentStep === 3 && (
             <div className="space-y-5">
-              <div className="p-4 rounded-2xl bg-warm-50 border border-warm-200 space-y-4">
+              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-950">
+                  <span className="font-bold block mb-0.5">
+                    Fundamental Rule: One Event, Exactly Two Access Codes
+                  </span>
+                  Your event has unlimited functions, but only <strong>one Guest Code</strong> and <strong>one Driver Code</strong>. Functions never have their own access codes.
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Guest Access Code */}
+                <div className="p-5 rounded-2xl border border-warm-200 bg-white space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-500">
+                      Guest Access Credential
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setGuestCode(generateRandomCode('RP'))}
+                      className="p-1 text-charcoal-400 hover:text-charcoal-700 rounded-md hover:bg-warm-100"
+                      title="Regenerate Guest Code"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div>
+                    <div className="font-mono text-2xl font-bold tracking-widest text-terracotta-900 bg-warm-50 py-3 px-4 rounded-xl border border-warm-200 text-center select-all">
+                      {guestCode}
+                    </div>
+                    <p className="text-[11px] text-charcoal-500 mt-1.5 text-center">
+                      Guests enter this code once to join the entire event and view their assigned ceremonies.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(guestCode, 'guest')}
+                    className="w-full py-2 rounded-xl border border-warm-200 text-xs font-bold text-charcoal-700 hover:bg-warm-50 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    {copiedGuest ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-emerald-700">Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy Guest Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Driver Access Code */}
+                <div className="p-5 rounded-2xl border border-warm-200 bg-white space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-charcoal-500">
+                      Driver Access Credential
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDriverCode(generateRandomCode('DR'))}
+                      className="p-1 text-charcoal-400 hover:text-charcoal-700 rounded-md hover:bg-warm-100"
+                      title="Regenerate Driver Code"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div>
+                    <div className="font-mono text-2xl font-bold tracking-widest text-navy-900 bg-warm-50 py-3 px-4 rounded-xl border border-warm-200 text-center select-all">
+                      {driverCode}
+                    </div>
+                    <p className="text-[11px] text-charcoal-500 mt-1.5 text-center">
+                      Drivers enter this code to request event access. Host approval is required before trips can be seen.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(driverCode, 'driver')}
+                    className="w-full py-2 rounded-xl border border-warm-200 text-xs font-bold text-charcoal-700 hover:bg-warm-50 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    {copiedDriver ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-emerald-700">Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy Driver Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Review & Create */}
+          {currentStep === 4 && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-warm-50 border border-warm-200 space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-warm-200">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-terracotta-900 bg-terracotta-100/70 px-2 py-0.5 rounded-md">
-                      {eventType}
+                      Master Event
                     </span>
-                    <h3 className="font-serif font-bold text-base text-charcoal-900 mt-1">{name}</h3>
+                    <h3 className="font-serif font-bold text-lg text-charcoal-900 mt-1">{name}</h3>
                   </div>
                   <div className="text-right text-xs text-charcoal-600">
-                    <span className="font-semibold text-charcoal-900">{date}</span>
-                    <div>{startTime} – {endTime}</div>
+                    <span className="font-semibold text-charcoal-900">{startDate} – {endDate}</span>
+                    <div>{city}</div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[11px] font-semibold text-charcoal-400 block uppercase">Venue</span>
-                    <span className="font-bold text-charcoal-900">{venueName}</span>
-                    <div className="text-charcoal-500 truncate">{venueAddress || city}</div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-white border border-warm-200">
+                    <span className="text-[10px] uppercase font-bold text-charcoal-400 block">Guest Code</span>
+                    <span className="font-mono text-base font-bold text-terracotta-800">{guestCode}</span>
+                    <div className="text-[11px] text-charcoal-500">Universal guest access</div>
                   </div>
-                  <div>
-                    <span className="text-[11px] font-semibold text-charcoal-400 block uppercase">Expected Guests</span>
-                    <span className="font-bold text-charcoal-900">{expectedGuestCount || '0'} Guests</span>
-                    <div className="text-charcoal-500">Separate function record</div>
+                  <div className="p-3 rounded-xl bg-white border border-warm-200">
+                    <span className="text-[10px] uppercase font-bold text-charcoal-400 block">Driver Code</span>
+                    <span className="font-mono text-base font-bold text-navy-800">{driverCode}</span>
+                    <div className="text-[11px] text-charcoal-500">Universal driver access (Pending Approval)</div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-white border border-warm-200 space-y-3">
-                <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider flex items-center gap-2">
-                  <Car className="w-4 h-4 text-terracotta-600" />
-                  Transportation Strategy
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider">
+                  Included Ceremonies ({functions.length})
                 </h4>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-2.5 rounded-xl bg-warm-50 border border-warm-100">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block">PICKUP</span>
-                    <span className="font-bold text-charcoal-800">{pickupRequired ? 'Required' : 'None'}</span>
-                    <div className="text-[11px] text-charcoal-500 truncate">{pickupLocation || '-'}</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-warm-50 border border-warm-100">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block">DROP</span>
-                    <span className="font-bold text-charcoal-800">{dropRequired ? 'Required' : 'None'}</span>
-                    <div className="text-[11px] text-charcoal-500 truncate">{dropLocation || '-'}</div>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-warm-50 border border-warm-100">
-                    <span className="text-[10px] text-charcoal-400 font-semibold block">FLEET ALLOCATION</span>
-                    <span className="font-bold text-charcoal-800">{numberOfVehicles}x {vehicleType}</span>
-                    <div className="text-[11px] text-sage-800 font-medium">From Real Host Fleet</div>
-                  </div>
+                <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1">
+                  {functions.map((fn) => (
+                    <div
+                      key={fn.id}
+                      className="p-3 rounded-xl bg-white border border-warm-200 text-xs flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-bold text-charcoal-900">{fn.name}</div>
+                        <div className="text-[11px] text-charcoal-500">
+                          {fn.date} · {fn.startTime} – {fn.endTime} · {fn.venueName}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-warm-100 text-charcoal-700">
+                        {fn.type}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-
-                {specialInstructions && (
-                  <div className="text-xs text-charcoal-600 italic bg-warm-50 p-2.5 rounded-xl border border-warm-200">
-                    &ldquo;{specialInstructions}&rdquo;
-                  </div>
-                )}
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-sage-50 border border-sage-200 flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-sage-600 shrink-0" />
-                <p className="text-xs text-sage-900 font-medium">
-                  This function will be created as an independent event record scoped exclusively to your authenticated host account and real database.
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <p className="text-xs text-emerald-900 font-medium">
+                  Ready to launch! This will create the master event with its child functions, database indexes, and access credentials.
                 </p>
               </div>
             </div>
@@ -789,14 +878,14 @@ export function EventWizardModal({
             </button>
           )}
 
-          {currentStep < 3 ? (
+          {currentStep < 4 ? (
             <SafarButton
               type="button"
               variant="primary"
               size="sm"
               onClick={handleNext}
             >
-              <span>Continue to {currentStep === 1 ? 'Transportation' : 'Review'}</span>
+              <span>Continue</span>
               <ChevronRight className="w-4 h-4" />
             </SafarButton>
           ) : (
@@ -804,10 +893,11 @@ export function EventWizardModal({
               type="button"
               variant="primary"
               size="sm"
-              disabled={submitting}
-              onClick={handleCreateFunction}
+              isLoading={submitting}
+              onClick={handleCreateEvent}
             >
-              {submitting ? 'Creating Function...' : 'Create Function Record'}
+              <span>Create Event & Launch Mobility</span>
+              <Sparkles className="w-4 h-4" />
             </SafarButton>
           )}
         </div>

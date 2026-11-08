@@ -8,6 +8,7 @@ export interface FunctionCardData {
   id: string;
   name: string;
   eventType?: string;
+  joinCode?: string | null;
   venueName?: string | null;
   city?: string | null;
   startDate: string | Date;
@@ -27,6 +28,7 @@ interface FunctionCardProps {
   event: FunctionCardData;
   onEdit?: (event: FunctionCardData) => void;
   onDelete?: (event: FunctionCardData) => void;
+  onAccessCodes?: (event: FunctionCardData) => void;
   className?: string;
 }
 

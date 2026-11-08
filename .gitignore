@@ -44,3 +44,7 @@ Thumbs.db
 # Coverage / Testing
 coverage/
 .nyc_output/
+
+# Database Backups
+backups/
+*.json.bak

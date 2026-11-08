@@ -269,15 +269,15 @@ export default function HostEventsPage() {
               guestCount: event.guestCount || 0,
               transportRequirements: event.transportRequirements,
             }}
-            onEdit={(ev) => {
+            onEdit={() => {
               setEditingEvent(event);
               setIsEditModalOpen(true);
             }}
-            onAccessCodes={(ev) => {
+            onAccessCodes={() => {
               setAccessCodesEvent(event);
               setIsAccessCodesModalOpen(true);
             }}
-            onDelete={(ev) => {
+            onDelete={() => {
               setDeletingEvent(event);
             }}
           />

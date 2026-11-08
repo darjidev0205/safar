@@ -466,10 +466,14 @@ async function runPR3ConcurrencySuite() {
     // CLEANUP TEST DATA
     // ------------------------------------------------------------------------
     console.log(`\n--- Cleanup Test Artifacts ---`);
+    const testTrips = await prisma.trip.findMany({ where: { eventId: event.id }, select: { id: true } });
+    const tripIds = testTrips.map((t) => t.id);
     await prisma.duty.deleteMany({ where: { vehicleId: { in: [sedanVehicle.id, suvVehicle.id] } } });
     await prisma.booking.deleteMany({ where: { eventId: event.id } });
-    await prisma.tripAssignment.deleteMany({ where: { trip: { eventId: event.id } } });
-    await prisma.tripEvent.deleteMany({ where: { trip: { eventId: event.id } } });
+    if (tripIds.length > 0) {
+      await prisma.tripAssignment.deleteMany({ where: { tripId: { in: tripIds } } });
+      await prisma.tripEvent.deleteMany({ where: { tripId: { in: tripIds } } });
+    }
     await prisma.trip.deleteMany({ where: { eventId: event.id } });
     await prisma.place.deleteMany({ where: { eventId: event.id } });
     await prisma.guest.deleteMany({ where: { eventId: event.id } });

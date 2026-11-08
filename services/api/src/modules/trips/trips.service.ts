@@ -328,43 +328,46 @@ export class TripsService {
       updatePayload.actualEndTime = new Date();
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.trip.update({
-        where: { id: tripId },
-        data: updatePayload,
-        include: {
-          originPlace: true,
-          destinationPlace: true,
-          driver: { include: { user: true } },
-          vehicle: true,
-        },
-      });
-
-      await tx.tripEvent.create({
-        data: {
-          tripId,
-          actorId: actorId || null,
-          fromStatus: currentStatus,
-          toStatus: targetStatus,
-          reason: reason || null,
-        },
-      });
-
-      // Update associated bookings status if completed or cancelled
-      if (targetStatus === TripStatus.COMPLETED) {
-        await tx.booking.updateMany({
-          where: { tripId },
-          data: { status: 'COMPLETED' },
+    const updated = await this.prisma.$transaction(
+      async (tx) => {
+        const result = await tx.trip.update({
+          where: { id: tripId },
+          data: updatePayload,
+          include: {
+            originPlace: true,
+            destinationPlace: true,
+            driver: { include: { user: true } },
+            vehicle: true,
+          },
         });
-      } else if (targetStatus === TripStatus.CANCELLED) {
-        await tx.booking.updateMany({
-          where: { tripId },
-          data: { status: 'CANCELLED' },
-        });
-      }
 
-      return result;
-    });
+        await tx.tripEvent.create({
+          data: {
+            tripId,
+            actorId: actorId || null,
+            fromStatus: currentStatus,
+            toStatus: targetStatus,
+            reason: reason || null,
+          },
+        });
+
+        // Update associated bookings status if completed or cancelled
+        if (targetStatus === TripStatus.COMPLETED) {
+          await tx.booking.updateMany({
+            where: { tripId },
+            data: { status: 'COMPLETED' },
+          });
+        } else if (targetStatus === TripStatus.CANCELLED) {
+          await tx.booking.updateMany({
+            where: { tripId },
+            data: { status: 'CANCELLED' },
+          });
+        }
+
+        return result;
+      },
+      { timeout: 30000, maxWait: 15000 }
+    );
 
     return updated;
   }

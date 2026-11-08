@@ -170,42 +170,74 @@ export class BookingsService {
 
       const vehicleCapacity = trip.vehicle?.capacity || 4;
 
-      // ATOMIC SEAT / VEHICLE RESERVATION VIA CONDITIONAL UPDATE
-      if (isExclusiveRequested) {
-        // Must have 0 current passengers to reserve whole vehicle exclusively
-        const res = await this.prisma.trip.updateMany({
-          where: {
-            id: trip.id,
-            passengerCount: 0,
-            isExclusive: false,
-            status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
-          },
-          data: {
-            passengerCount,
-            isExclusive: true,
-          },
-        });
+      // ATOMIC SEAT / VEHICLE RESERVATION VIA CONDITIONAL UPDATE WITH WRITE-CONFLICT RETRY
+      let updateResult = { count: 0 };
+      const maxRetries = 8;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          if (isExclusiveRequested) {
+            updateResult = await this.prisma.trip.updateMany({
+              where: {
+                id: trip.id,
+                passengerCount: 0,
+                isExclusive: false,
+                status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
+              },
+              data: {
+                passengerCount,
+                isExclusive: true,
+              },
+            });
+          } else {
+            updateResult = await this.prisma.trip.updateMany({
+              where: {
+                id: trip.id,
+                isExclusive: false,
+                status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
+                passengerCount: { lte: vehicleCapacity - passengerCount },
+              },
+              data: {
+                passengerCount: { increment: passengerCount },
+              },
+            });
+          }
+          break; // Successfully updated or returned count 0
+        } catch (err: any) {
+          const isWriteConflict =
+            err.message?.includes('write conflict') ||
+            err.message?.includes('deadlock') ||
+            err.message?.includes('WriteConflict');
+          if (isWriteConflict) {
+            // Check if trip is already at capacity or booked exclusively
+            const currentTrip = await this.prisma.trip.findUnique({ where: { id: trip.id } });
+            if (currentTrip) {
+              if (currentTrip.isExclusive) {
+                throw new ConflictException(
+                  'Trip is booked exclusively (whole vehicle reservation). Additional passenger reservations are not permitted.'
+                );
+              }
+              const remaining = Math.max(0, vehicleCapacity - currentTrip.passengerCount);
+              if (remaining < passengerCount) {
+                throw new ConflictException(
+                  `Capacity exceeded: Trip has only ${remaining} seat(s) remaining (requested: ${passengerCount}).`
+                );
+              }
+            }
+            if (attempt < maxRetries) {
+              await new Promise((r) => setTimeout(r, Math.random() * 40 + 15));
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
 
-        if (res.count === 0) {
+      if (updateResult.count === 0) {
+        if (isExclusiveRequested) {
           throw new ConflictException(
             'Cannot book whole vehicle exclusively: Existing seat reservations already exist on this trip or trip is full.'
           );
-        }
-      } else {
-        // Reserve seat atomically if passengerCount + requested <= vehicleCapacity
-        const res = await this.prisma.trip.updateMany({
-          where: {
-            id: trip.id,
-            isExclusive: false,
-            status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
-            passengerCount: { lte: vehicleCapacity - passengerCount },
-          },
-          data: {
-            passengerCount: { increment: passengerCount },
-          },
-        });
-
-        if (res.count === 0) {
+        } else {
           const latestTrip = await this.prisma.trip.findUnique({ where: { id: trip.id } });
           const seatsRemaining = Math.max(0, vehicleCapacity - (latestTrip?.passengerCount || vehicleCapacity));
           throw new ConflictException(

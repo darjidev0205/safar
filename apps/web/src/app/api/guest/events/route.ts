@@ -130,12 +130,12 @@ export async function GET(req: NextRequest) {
             (fn.name.toLowerCase().includes('mehndi')
               ? 'Pastel / Floral Festive'
               : fn.name.toLowerCase().includes('sangeet')
-              ? 'Indo-Western Glamour'
-              : fn.name.toLowerCase().includes('haldi')
-              ? 'Auspicious Yellows & Traditional'
-              : fn.name.toLowerCase().includes('reception')
-              ? 'Formal Luxury & Black Tie'
-              : 'Traditional Festive Wedding Attire'),
+                ? 'Indo-Western Glamour'
+                : fn.name.toLowerCase().includes('haldi')
+                  ? 'Auspicious Yellows & Traditional'
+                  : fn.name.toLowerCase().includes('reception')
+                    ? 'Formal Luxury & Black Tie'
+                    : 'Traditional Festive Wedding Attire'),
           transportRules: fn.transportRules || null,
           transportStatus: 'SCHEDULED',
           pickupWindow,
@@ -158,12 +158,12 @@ export async function GET(req: NextRequest) {
           sub.name.toLowerCase().includes('mehndi')
             ? 'Pastel / Floral Festive'
             : sub.name.toLowerCase().includes('sangeet')
-            ? 'Indo-Western Glamour'
-            : sub.name.toLowerCase().includes('haldi')
-            ? 'Auspicious Yellows & Traditional'
-            : sub.name.toLowerCase().includes('reception')
-            ? 'Formal Luxury & Black Tie'
-            : 'Traditional Festive Wedding Attire',
+              ? 'Indo-Western Glamour'
+              : sub.name.toLowerCase().includes('haldi')
+                ? 'Auspicious Yellows & Traditional'
+                : sub.name.toLowerCase().includes('reception')
+                  ? 'Formal Luxury & Black Tie'
+                  : 'Traditional Festive Wedding Attire',
         transportStatus: 'SCHEDULED',
         pickupWindow: `${sub.startTime ? sub.startTime.split(':')[0] : '17'}:15`,
       }));

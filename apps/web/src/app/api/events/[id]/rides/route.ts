@@ -125,6 +125,88 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
     }
 
+    const windowStart = new Date(parsedTime.getTime() - 30 * 60000);
+    const windowEnd = new Date(parsedTime.getTime() + 30 * 60000);
+
+    // Driver compliance & conflict prevention
+    if (driverId) {
+      const driver = await prisma.driver.findUnique({
+        where: { id: driverId },
+        include: { user: true },
+      });
+      if (!driver) {
+        return NextResponse.json(
+          { success: false, error: { message: `Driver with ID ${driverId} not found.` } },
+          { status: 404 }
+        );
+      }
+      if (!driver.isVerified || driver.approvalStatus !== 'APPROVED') {
+        return NextResponse.json(
+          { success: false, error: { message: 'Compliance check failed: Driver is pending verification approval.' } },
+          { status: 400 }
+        );
+      }
+
+      // Active in-progress check
+      const activeDriverTrip = await prisma.trip.findFirst({
+        where: {
+          driverId,
+          status: { in: [TripStatus.ASSIGNED, TripStatus.EN_ROUTE_TO_PICKUP, TripStatus.ARRIVED, TripStatus.BOARDING, TripStatus.IN_TRANSIT] },
+        },
+      });
+      if (activeDriverTrip) {
+        return NextResponse.json(
+          { success: false, error: { message: `Driver conflict: Driver is already assigned to active trip ${activeDriverTrip.id}.` } },
+          { status: 409 }
+        );
+      }
+
+      // Scheduled window overlap check (+/- 30 min)
+      const overlappingDriverTrip = await prisma.trip.findFirst({
+        where: {
+          driverId,
+          scheduledPickupTime: { gte: windowStart, lte: windowEnd },
+          status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
+        },
+      });
+      if (overlappingDriverTrip) {
+        return NextResponse.json(
+          { success: false, error: { message: `Driver conflict: Driver has another trip scheduled within 30 minutes.` } },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Vehicle conflict prevention
+    if (vehicleId) {
+      const activeVehicleTrip = await prisma.trip.findFirst({
+        where: {
+          vehicleId,
+          status: { in: [TripStatus.EN_ROUTE_TO_PICKUP, TripStatus.ARRIVED, TripStatus.BOARDING, TripStatus.IN_TRANSIT] },
+        },
+      });
+      if (activeVehicleTrip) {
+        return NextResponse.json(
+          { success: false, error: { message: `Vehicle conflict: Vehicle is currently on active trip ${activeVehicleTrip.id}.` } },
+          { status: 409 }
+        );
+      }
+
+      const overlappingVehicleTrip = await prisma.trip.findFirst({
+        where: {
+          vehicleId,
+          scheduledPickupTime: { gte: windowStart, lte: windowEnd },
+          status: { notIn: [TripStatus.COMPLETED, TripStatus.CANCELLED] },
+        },
+      });
+      if (overlappingVehicleTrip) {
+        return NextResponse.json(
+          { success: false, error: { message: `Vehicle conflict: Vehicle is already scheduled for another trip within 30 minutes.` } },
+          { status: 409 }
+        );
+      }
+    }
+
     const trip = await prisma.trip.create({
       data: {
         eventId,

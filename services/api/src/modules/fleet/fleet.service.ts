@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DutyStatus, UserRole } from '@safar/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -127,6 +127,26 @@ export class FleetService {
         throw new BadRequestException(
           'Compliance check failed: Driver license and verification documents are pending review. Driver cannot go ON_DUTY until approved.'
         );
+      }
+
+      const targetVehicleId = vehicleId || driver.currentVehicleId;
+      if (targetVehicleId) {
+        // Vehicle conflict check: Prevent two drivers from being simultaneously ON_DUTY in the same vehicle
+        const existingActiveDuty = await this.prisma.duty.findFirst({
+          where: {
+            vehicleId: targetVehicleId,
+            status: DutyStatus.ON_DUTY,
+            driverId: { not: driverId },
+          },
+          include: { driver: { include: { user: true } } },
+        });
+
+        if (existingActiveDuty) {
+          const activeDriverName = existingActiveDuty.driver?.user?.fullName || existingActiveDuty.driverId;
+          throw new ConflictException(
+            `Vehicle conflict: Vehicle is already assigned to active duty with driver ${activeDriverName}.`
+          );
+        }
       }
     }
 

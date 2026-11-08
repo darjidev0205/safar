@@ -34,6 +34,14 @@ export class TripsController {
     return this.tripsService.createTrip(eventId, body);
   }
 
+  @Patch(':id/assign')
+  async assignTrip(
+    @Param('id') id: string,
+    @Body() body: { driverId?: string; vehicleId?: string },
+  ) {
+    return this.tripsService.assignTrip(id, body);
+  }
+
   @Patch(':id/status')
   async updateTripStatus(
     @Param('id') id: string,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -34,5 +34,13 @@ export class BookingsController {
     if (!eventId) throw new BadRequestException('eventId query parameter is required');
     CreateBookingSchema.parse(body);
     return this.bookingsService.createBooking(eventId, user.id, body);
+  }
+
+  @Patch(':id/cancel')
+  async cancelBooking(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.cancelBooking(id, user.id);
   }
 }

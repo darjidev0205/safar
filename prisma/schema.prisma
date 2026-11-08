@@ -621,6 +621,7 @@ model Trip {
   boardingCode         String?
   failedBoardingAttempts Int     @default(0)
   boardingLockedUntil    DateTime?
+  isExclusive          Boolean    @default(false)
   currentLat           Float?
   currentLng           Float?
   currentSpeed         Float?
@@ -682,6 +683,8 @@ model Booking {
   passengerCount       Int             @default(1)
   requestedCategory    VehicleCategory @default(SEDAN)
   status               BookingStatus   @default(CONFIRMED)
+  bookingType          String          @default("SEAT")
+  isExclusive          Boolean         @default(false)
   boardingCode         String
   boardingAttempts     Int             @default(0)
   lastBoardingAttemptAt DateTime?

@@ -505,8 +505,8 @@ model Driver {
   address          String?
   emergencyContact String?
   vehicleInfo      String?
-  isVerified       Boolean      @default(true)
-  approvalStatus   String       @default("APPROVED")
+  isVerified       Boolean      @default(false)
+  approvalStatus   String       @default("PENDING")
   dutyStatus       DutyStatus   @default(OFF_DUTY)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -611,6 +611,8 @@ model Trip {
   estimatedCost        Float?
   actualCost           Float?
   boardingCode         String?
+  failedBoardingAttempts Int     @default(0)
+  boardingLockedUntil    DateTime?
   currentLat           Float?
   currentLng           Float?
   currentSpeed         Float?
@@ -672,7 +674,9 @@ model Booking {
   passengerCount       Int             @default(1)
   requestedCategory    VehicleCategory @default(SEDAN)
   status               BookingStatus   @default(CONFIRMED)
-  boardingCode         String          @default("1234")
+  boardingCode         String
+  boardingAttempts     Int             @default(0)
+  lastBoardingAttemptAt DateTime?
   qrCodeUrl            String?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt

@@ -58,6 +58,15 @@ export class TripsService {
   }
 
   async createTrip(eventId: string, data: any) {
+    if (data.driverId) {
+      const driver = await this.prisma.driver.findUnique({ where: { id: data.driverId } });
+      if (!driver) {
+        throw new NotFoundException(`Driver with ID ${data.driverId} not found`);
+      }
+      if (!driver.isVerified || driver.approvalStatus !== 'APPROVED') {
+        throw new BadRequestException('Compliance check failed: Cannot assign an unverified or pending driver to a trip.');
+      }
+    }
     return this.prisma.trip.create({
       data: {
         eventId,
@@ -144,6 +153,20 @@ export class TripsService {
   async verifyBoarding(tripId: string, boardingCode: string) {
     const cleanCode = boardingCode.trim();
 
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      throw new NotFoundException(`Trip with ID ${tripId} not found`);
+    }
+
+    // Rate-limiting check: enforce trip-level lockout if locked
+    const now = new Date();
+    if (trip.boardingLockedUntil && trip.boardingLockedUntil > now) {
+      const remainingSeconds = Math.ceil((trip.boardingLockedUntil.getTime() - now.getTime()) / 1000);
+      throw new ForbiddenException(
+        `Trip boarding verification is locked due to repeated invalid attempts. Please retry in ${remainingSeconds} seconds.`
+      );
+    }
+
     const booking = await this.prisma.booking.findFirst({
       where: {
         tripId,
@@ -153,17 +176,54 @@ export class TripsService {
     });
 
     if (!booking) {
-      throw new BadRequestException('Invalid boarding code for this trip');
+      const currentAttempts = (trip.failedBoardingAttempts || 0) + 1;
+      const shouldLock = currentAttempts >= 5;
+      const lockedUntil = shouldLock ? new Date(Date.now() + 5 * 60 * 1000) : null;
+
+      await this.prisma.trip.update({
+        where: { id: tripId },
+        data: {
+          failedBoardingAttempts: shouldLock ? 0 : currentAttempts,
+          boardingLockedUntil: lockedUntil,
+        },
+      });
+
+      if (shouldLock) {
+        throw new ForbiddenException(
+          'Maximum invalid boarding code attempts exceeded (5/5). Boarding verification locked for 5 minutes.'
+        );
+      }
+      throw new BadRequestException(
+        `Invalid boarding code for this trip. Attempts remaining: ${5 - currentAttempts}`
+      );
     }
 
-    await this.prisma.booking.update({
-      where: { id: booking.id },
-      data: { status: 'BOARDED' },
-    });
+    // Replay prevention: reject already boarded or cancelled bookings
+    if (booking.status === 'BOARDED') {
+      throw new BadRequestException('Replay detected: Passenger is already boarded on this trip.');
+    }
+
+    if (booking.status !== 'CONFIRMED') {
+      throw new BadRequestException(`Cannot board booking in ${booking.status} status.`);
+    }
+
+    // Successful code verification: reset failed attempt counter and mark BOARDED
+    await this.prisma.$transaction([
+      this.prisma.trip.update({
+        where: { id: tripId },
+        data: {
+          failedBoardingAttempts: 0,
+          boardingLockedUntil: null,
+        },
+      }),
+      this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: 'BOARDED' },
+      }),
+    ]);
 
     // Advance trip to BOARDING if currently ARRIVED
-    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
-    if (trip && trip.status === TripStatus.ARRIVED) {
+    if (trip.status === TripStatus.ARRIVED) {
       await this.updateTripStatus(tripId, TripStatus.BOARDING, undefined, 'Guest boarded with valid code');
     }
 

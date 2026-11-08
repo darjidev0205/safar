@@ -61,11 +61,7 @@ export class TenantGuard implements CanActivate {
         if (err instanceof NotFoundException || err instanceof ForbiddenException) {
           throw err;
         }
-        // In transient dev fallback
-        request.tenantContext = {
-          eventId,
-          isAccountMember: true,
-        };
+        throw new ForbiddenException('Tenant authorization failed: Unable to verify event membership');
       }
     }
 

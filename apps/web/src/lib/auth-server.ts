@@ -58,12 +58,15 @@ export async function getAuthenticatedHost(
 ): Promise<{ context: AuthenticatedHostContext | null; response?: NextResponse }> {
   try {
     const authHeader = req.headers.get('authorization');
-    const emailHeader = req.headers.get('x-user-email');
-    const uidHeader = req.headers.get('x-user-uid');
-    const userIdHeader = req.headers.get('x-user-id');
-    const emailQuery = req.nextUrl.searchParams.get('email');
-    const uidQuery = req.nextUrl.searchParams.get('uid');
-    const userIdQuery = req.nextUrl.searchParams.get('userId');
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Disallow arbitrary impersonation headers in production
+    const emailHeader = isProduction ? null : req.headers.get('x-user-email');
+    const uidHeader = isProduction ? null : req.headers.get('x-user-uid');
+    const userIdHeader = isProduction ? null : req.headers.get('x-user-id');
+    const emailQuery = isProduction ? null : req.nextUrl.searchParams.get('email');
+    const uidQuery = isProduction ? null : req.nextUrl.searchParams.get('uid');
+    const userIdQuery = isProduction ? null : req.nextUrl.searchParams.get('userId');
 
     let resolvedUserId: string | null = userIdHeader || userIdQuery || null;
     let resolvedFirebaseUid: string | null = uidHeader || uidQuery || null;
@@ -80,7 +83,7 @@ export async function getAuthenticatedHost(
           resolvedEmail = decoded.email;
         }
 
-        if (!decoded.uid && !decoded.email) {
+        if (!decoded.uid && !decoded.email && !isProduction) {
           if (token.includes('@')) {
             resolvedEmail = token.toLowerCase().trim();
           } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token) || /^[0-9a-fA-F]{24}$/.test(token)) {

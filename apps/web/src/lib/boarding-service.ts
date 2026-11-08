@@ -6,8 +6,11 @@ import { BookingStatus, TripStatus } from '@prisma/client';
  * Generates a secure, memorable 4-digit boarding code.
  */
 export function generateBoardingCode(): string {
-  const num = crypto.randomInt(1000, 9999);
-  return num.toString();
+  let num = crypto.randomInt(1000, 10000).toString();
+  while (num === '1234') {
+    num = crypto.randomInt(1000, 10000).toString();
+  }
+  return num;
 }
 
 export interface BoardingVerificationResult {
@@ -59,6 +62,17 @@ export async function verifyPassengerBoarding({
     };
   }
 
+  // 2b. Rate-limiting check: enforce trip-level lockout if locked
+  const now = new Date();
+  if (trip.boardingLockedUntil && trip.boardingLockedUntil > now) {
+    const remainingSeconds = Math.ceil((trip.boardingLockedUntil.getTime() - now.getTime()) / 1000);
+    return {
+      success: false,
+      message: `Trip boarding verification is locked due to repeated invalid attempts. Please retry in ${remainingSeconds} seconds.`,
+      error: 'BOARDING_LOCKED',
+    };
+  }
+
   // 3. Verify trip status allows boarding
   if (
     trip.status !== TripStatus.ARRIVED &&
@@ -78,23 +92,59 @@ export async function verifyPassengerBoarding({
   );
 
   if (!matchedBooking) {
+    const currentAttempts = (trip.failedBoardingAttempts || 0) + 1;
+    const shouldLock = currentAttempts >= 5;
+    const lockedUntil = shouldLock ? new Date(Date.now() + 5 * 60 * 1000) : null;
+
+    await prisma.trip.update({
+      where: { id: tripId },
+      data: {
+        failedBoardingAttempts: shouldLock ? 0 : currentAttempts,
+        boardingLockedUntil: lockedUntil,
+      },
+    });
+
+    if (shouldLock) {
+      return {
+        success: false,
+        message: 'Maximum invalid boarding code attempts exceeded (5/5). Boarding verification locked for 5 minutes.',
+        error: 'MAX_ATTEMPTS_EXCEEDED',
+      };
+    }
+
     return {
       success: false,
-      message: 'Invalid boarding code for this trip.',
+      message: `Invalid boarding code for this trip. Attempts remaining: ${5 - currentAttempts}`,
       error: 'INVALID_BOARDING_CODE',
     };
   }
 
   if (matchedBooking.status === BookingStatus.BOARDED) {
     return {
-      success: true,
-      message: `${matchedBooking.guest?.fullName || 'Passenger'} is already boarded.`,
-      booking: matchedBooking,
+      success: false,
+      message: 'Replay detected: Passenger is already boarded on this trip.',
+      error: 'REPLAY_DETECTED',
     };
   }
 
-  // 5. Update booking status to BOARDED and advance trip to BOARDING if currently ARRIVED
+  if (matchedBooking.status !== BookingStatus.CONFIRMED) {
+    return {
+      success: false,
+      message: `Cannot board booking in ${matchedBooking.status} status.`,
+      error: 'INVALID_BOOKING_STATUS',
+    };
+  }
+
+  // 5. Update booking status to BOARDED, reset trip lock, and advance trip to BOARDING if ARRIVED
   const updatedBooking = await prisma.$transaction(async (tx) => {
+    await tx.trip.update({
+      where: { id: tripId },
+      data: {
+        failedBoardingAttempts: 0,
+        boardingLockedUntil: null,
+      },
+    });
+
     const b = await tx.booking.update({
       where: { id: matchedBooking.id },
       data: { status: BookingStatus.BOARDED },

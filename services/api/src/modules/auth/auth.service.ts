@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@safar/types';
 
@@ -46,13 +46,26 @@ export class AuthService {
     };
   }
 
-  async syncProfile(userId: string, data: { fullName: string; role?: UserRole }) {
+  async syncProfile(userId: string, data: { fullName?: string; avatarUrl?: string; role?: UserRole }) {
+    const existingUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) {
+      throw new NotFoundException('User record not found');
+    }
+
+    // STRICT ROLE IMMUTABILITY: Reject any attempt to elevate or mutate role via client profile sync
+    if (data.role && data.role !== existingUser.role) {
+      throw new ForbiddenException(
+        'Privilege escalation rejected: Roles cannot be modified via profile sync. Roles are strictly derived from verified server-side tenant memberships.'
+      );
+    }
+
+    const updateData: { fullName?: string; avatarUrl?: string } = {};
+    if (data.fullName !== undefined) updateData.fullName = data.fullName.trim();
+    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        fullName: data.fullName,
-        ...(data.role ? { role: data.role as any } : {}),
-      },
+      data: updateData,
     });
     return updated;
   }

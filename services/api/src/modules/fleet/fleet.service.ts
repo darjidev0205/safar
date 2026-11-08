@@ -121,6 +121,15 @@ export class FleetService {
       throw new NotFoundException(`Driver with ID ${driverId} not found`);
     }
 
+    // Policy enforcement: Driver must be verified and approved before going ON_DUTY
+    if (dutyStatus === DutyStatus.ON_DUTY) {
+      if (!driver.isVerified || driver.approvalStatus !== 'APPROVED') {
+        throw new BadRequestException(
+          'Compliance check failed: Driver license and verification documents are pending review. Driver cannot go ON_DUTY until approved.'
+        );
+      }
+    }
+
     const updated = await this.prisma.driver.update({
       where: { id: driverId },
       data: {

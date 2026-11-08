@@ -6,10 +6,12 @@ service cloud.firestore {
       // User can read their own profile
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // User can create their own profile initially
+      // User can create their own profile initially ONLY as GUEST.
+      // Privileged roles (EVENT_ORGANIZER, ACCOUNT_OWNER, DRIVER, SUPER_ADMIN)
+      // are strictly server-provisioned via backend tenant membership.
       allow create: if request.auth != null && request.auth.uid == userId
         && request.resource.data.keys().hasAll(['email', 'role', 'displayName'])
-        && request.resource.data.role in ['EVENT_ORGANIZER', 'ACCOUNT_OWNER', 'GUEST', 'DRIVER'];
+        && request.resource.data.role == 'GUEST';
 
       // User can only update their own non-sensitive profile information
       allow update: if request.auth != null && request.auth.uid == userId

@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingStatus, TripStatus } from '@safar/types';
+import * as crypto from 'crypto';
 
-function generateBoardingCode(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+export function generateSecureBoardingCode(): string {
+  // Cryptographically random 4-digit code (1000 - 9999), strictly excluding predictable '1234'
+  let code = crypto.randomInt(1000, 10000).toString();
+  while (code === '1234') {
+    code = crypto.randomInt(1000, 10000).toString();
+  }
+  return code;
 }
 
 @Injectable()
@@ -96,7 +102,7 @@ export class BookingsService {
     }
 
     const passengerCount = data.passengerCount || 1;
-    const boardingCode = generateBoardingCode();
+    const boardingCode = generateSecureBoardingCode();
 
     // 2. Perform capacity check and atomic booking creation in a transaction
     const booking = await this.prisma.$transaction(async (tx) => {

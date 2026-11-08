@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HostSidebar } from '../../components/host/sidebar';
 import { HostHeader } from '../../components/host/header';
 import { EventWizardModal } from '../../components/host/event-wizard-modal';
@@ -8,10 +8,12 @@ import { EventModel, UserRole } from '@safar/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthGuard } from '../../components/auth/auth-guard';
 import { MobileBottomNav } from '../../components/host/mobile-bottom-nav';
+import { useAuth } from '../../context/auth-context';
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { profile } = useAuth();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   // Active events state
@@ -21,6 +23,41 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
   // Check demo mode environment configuration
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
+  const loadEventsFromServer = useCallback(async () => {
+    try {
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
+          : '';
+
+      const res = await fetch('/api/events', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.events) && data.events.length > 0) {
+          setEvents(data.events);
+          const savedEventId = typeof window !== 'undefined' ? localStorage.getItem('safar_selected_event_id') : null;
+          const matched = savedEventId ? data.events.find((e: any) => e.id === savedEventId) : null;
+          const chosen = matched || data.events[0];
+          setSelectedEvent(chosen);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('safar_host_events', JSON.stringify(data.events));
+            localStorage.setItem('safar_selected_event_id', chosen.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load host events in layout:', err);
+    }
+  }, [profile]);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('safar_host_events');
@@ -29,7 +66,9 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setEvents(parsed);
-            setSelectedEvent(parsed[0]);
+            const savedEventId = localStorage.getItem('safar_selected_event_id');
+            const matched = savedEventId ? parsed.find((e: any) => e.id === savedEventId) : null;
+            setSelectedEvent(matched || parsed[0]);
             return;
           }
         } catch (e) {
@@ -37,8 +76,9 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
         }
       }
 
-      // If demo mode is explicitly enabled, provide sample event
-      if (isDemoMode) {
+      if (profile) {
+        loadEventsFromServer();
+      } else if (isDemoMode) {
         const demoEvent: EventModel = {
           id: 'ev_demo_1',
           accountId: 'acc_demo',
@@ -56,7 +96,7 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
         setSelectedEvent(demoEvent);
       }
     }
-  }, [isDemoMode]);
+  }, [profile, isDemoMode, loadEventsFromServer]);
 
   const currentTab = pathname.split('/')[2] || 'dashboard';
 
@@ -68,12 +108,20 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const handleSelectEvent = (ev: EventModel) => {
+    setSelectedEvent(ev);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('safar_selected_event_id', ev.id);
+    }
+  };
+
   const handleEventCreated = (newEvent: EventModel) => {
     const updated = [newEvent, ...events];
     setEvents(updated);
     setSelectedEvent(newEvent);
     if (typeof window !== 'undefined') {
       localStorage.setItem('safar_host_events', JSON.stringify(updated));
+      localStorage.setItem('safar_selected_event_id', newEvent.id);
     }
   };
 
@@ -90,7 +138,7 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
           <HostHeader
             events={events}
             selectedEvent={selectedEvent}
-            onSelectEvent={(ev) => setSelectedEvent(ev)}
+            onSelectEvent={handleSelectEvent}
             onOpenWizard={() => setIsWizardOpen(true)}
           />
 

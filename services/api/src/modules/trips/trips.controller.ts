@@ -10,9 +10,12 @@ export class TripsController {
   constructor(private readonly tripsService: TripsService) {}
 
   @Get()
-  async listTrips(@Query('eventId') eventId: string) {
+  async listTrips(
+    @Query('eventId') eventId: string,
+    @Query('functionId') functionId?: string,
+  ) {
     if (!eventId) throw new BadRequestException('eventId query parameter is required');
-    return this.tripsService.listTrips(eventId);
+    return this.tripsService.listTrips(eventId, { functionId });
   }
 
   @Get('driver/current')

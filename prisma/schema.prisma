@@ -147,6 +147,8 @@ model AccountMember {
 model Invitation {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   accountId  String   @db.ObjectId
+  eventId    String?  @db.ObjectId
+  guestId    String?  @db.ObjectId
   email      String?
   phone      String?
   role       Role
@@ -156,8 +158,12 @@ model Invitation {
   createdAt  DateTime @default(now())
 
   account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest      Guest?   @relation(fields: [guestId], references: [id], onDelete: SetNull)
 
   @@index([accountId])
+  @@index([eventId])
+  @@index([guestId])
   @@map("invitations")
 }
 
@@ -205,6 +211,7 @@ model Event {
   transportRequirements EventTransportRequirement[]
   eventGuests           EventGuest[]
   driverEvents          DriverEvent[]
+  invitations           Invitation[]
 
   @@index([accountId])
   @@index([parentEventId])
@@ -425,6 +432,7 @@ model Guest {
   eventGuests         EventGuest[]
   attendances         GuestFunctionAttendance[]
   trips               Trip[]
+  invitations         Invitation[]
 
   @@index([eventId])
   @@index([accountId])

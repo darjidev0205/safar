@@ -8,7 +8,8 @@
  * 4. WS-01: Unauthenticated WebSocket connection rejection.
  */
 
-import { PrismaClient, DutyStatus, TripStatus, BookingStatus } from '@prisma/client';
+import { PrismaClient, TripStatus, BookingStatus } from '@prisma/client';
+import { DutyStatus } from '@safar/types';
 import { generateSecureBoardingCode } from '../services/api/src/modules/bookings/bookings.service';
 import { AuthService } from '../services/api/src/modules/auth/auth.service';
 import { TripsService } from '../services/api/src/modules/trips/trips.service';
@@ -86,7 +87,7 @@ async function runRegressionSuite() {
     assert(driver.approvalStatus === 'PENDING', 'Driver.approvalStatus defaults to "PENDING"');
 
     // Test duty block for unverified driver
-    const fleetService = new FleetService(prisma);
+    const fleetService = new FleetService(prisma as any);
     let dutyBlocked = false;
     try {
       await fleetService.updateDutyStatus(driver.id, DutyStatus.ON_DUTY);
@@ -96,7 +97,7 @@ async function runRegressionSuite() {
     assert(dutyBlocked, 'Unverified driver is blocked from going ON_DUTY with compliance exception');
 
     // Test trip assignment block for unverified driver
-    const tripsService = new TripsService(prisma);
+    const tripsService = new TripsService(prisma as any);
     const event = await prisma.event.create({
       data: {
         accountId: account.id,
@@ -145,7 +146,7 @@ async function runRegressionSuite() {
       },
     });
 
-    const authService = new AuthService(prisma);
+    const authService = new AuthService(prisma as any);
     let escalationBlocked = false;
     try {
       await authService.syncProfile(guestUser.id, {
@@ -289,3 +290,4 @@ async function runRegressionSuite() {
 }
 
 runRegressionSuite();
+

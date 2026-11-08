@@ -17,7 +17,7 @@ export class TenantGuard implements CanActivate {
       return true;
     }
 
-    const eventId = request.params.eventId || request.query.eventId || request.body.eventId;
+    const eventId = request.params.eventId || request.params.id || request.query.eventId || request.body.eventId;
 
     if (eventId) {
       try {
@@ -37,10 +37,10 @@ export class TenantGuard implements CanActivate {
           throw new NotFoundException('Event not found');
         }
 
-        // Check if user is an account member (Organizer/Host)
-        const isAccountMember = event.account.members.some(
-          (m) => m.userId === user.id
-        );
+        // Check if user is an account member (Organizer/Host) or creator
+        const isAccountMember =
+          event.creatorId === user.id ||
+          event.account.members.some((m) => m.userId === user.id);
 
         // Check if user is an event member (Guest/Driver)
         const isEventMember = event.eventMembers.some(

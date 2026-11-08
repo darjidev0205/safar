@@ -7,12 +7,17 @@ import { isValidTripTransition } from '@safar/config';
 export class TripsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listTrips(eventId: string) {
+  async listTrips(eventId: string, options?: { functionId?: string }) {
+    const where: any = { eventId };
+    if (options?.functionId) {
+      where.functionId = options.functionId;
+    }
     return this.prisma.trip.findMany({
-      where: { eventId },
+      where,
       include: {
         originPlace: true,
         destinationPlace: true,
+        function: true,
         driver: {
           include: { user: true },
         },
@@ -70,8 +75,14 @@ export class TripsService {
     return this.prisma.trip.create({
       data: {
         eventId,
-        originPlaceId: data.originPlaceId,
-        destinationPlaceId: data.destinationPlaceId,
+        functionId: data.functionId || null,
+        guestId: data.guestId || null,
+        familyId: data.familyId || null,
+        originPlaceId: data.originPlaceId || null,
+        destinationPlaceId: data.destinationPlaceId || null,
+        pickupLocation: data.pickupLocation || null,
+        destination: data.destination || null,
+        passengerCount: data.passengerCount ? parseInt(String(data.passengerCount), 10) : 1,
         scheduledPickupTime: new Date(data.scheduledPickupTime),
         vehicleId: data.vehicleId || null,
         driverId: data.driverId || null,
@@ -80,6 +91,7 @@ export class TripsService {
       include: {
         originPlace: true,
         destinationPlace: true,
+        function: true,
         driver: { include: { user: true } },
         vehicle: true,
       },

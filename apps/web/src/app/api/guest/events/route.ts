@@ -61,25 +61,41 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    const eventIncludes = {
+      functions: {
+        where: { status: { not: 'ARCHIVED' } },
+        orderBy: { startTime: 'asc' as const },
+        include: { place: true },
+      },
+      subEvents: { orderBy: { startDate: 'asc' as const } },
+      places: true,
+      eventCodes: true,
+    };
+
     let event: any = null;
     if (eventCodeParam) {
-      event = await prisma.event.findUnique({
-        where: { joinCode: eventCodeParam },
-        include: { subEvents: { orderBy: { startDate: 'asc' } }, places: true },
+      event = await prisma.event.findFirst({
+        where: {
+          OR: [
+            { joinCode: eventCodeParam },
+            { eventCodes: { some: { code: eventCodeParam, isActive: true } } },
+          ],
+        },
+        include: eventIncludes,
       });
     }
 
     if (!event && guest?.eventId) {
       event = await prisma.event.findUnique({
         where: { id: guest.eventId },
-        include: { subEvents: { orderBy: { startDate: 'asc' } }, places: true },
+        include: eventIncludes,
       });
     }
 
     if (!event) {
       event = await prisma.event.findFirst({
         where: { status: 'ACTIVE' },
-        include: { subEvents: { orderBy: { startDate: 'asc' } }, places: true },
+        include: eventIncludes,
         orderBy: { startDate: 'asc' },
       });
     }
@@ -88,51 +104,89 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, events: [] });
     }
 
-    const ceremonies =
-      event.subEvents && event.subEvents.length > 0
-        ? event.subEvents.map((sub: any, idx: number) => ({
-            id: sub.id,
-            sequence: `0${idx + 1}`,
-            name: sub.name,
-            eventType: sub.eventType || 'CEREMONY',
-            date: sub.startDate.toISOString(),
-            startTime: sub.startTime || '18:00',
-            endTime: sub.endTime || '23:00',
-            venueName: sub.venueName || event.venueName || 'Ceremony Hall',
-            venueAddress: sub.venueAddress || event.venueAddress || event.city,
-            venueLatitude: sub.venueLatitude || event.venueLatitude || 23.0225,
-            venueLongitude: sub.venueLongitude || event.venueLongitude || 72.5714,
-            dressCode:
-              sub.name.toLowerCase().includes('mehndi')
-                ? 'Pastel / Floral Festive'
-                : sub.name.toLowerCase().includes('sangeet')
-                ? 'Indo-Western Glamour'
-                : sub.name.toLowerCase().includes('haldi')
-                ? 'Auspicious Yellows & Traditional'
-                : sub.name.toLowerCase().includes('reception')
-                ? 'Formal Luxury & Black Tie'
-                : 'Traditional Festive Wedding Attire',
-            transportStatus: 'SCHEDULED',
-            pickupWindow: `${sub.startTime ? sub.startTime.split(':')[0] : '17'}:15`,
-          }))
-        : [
-            {
-              id: event.id,
-              sequence: '01',
-              name: event.name,
-              eventType: event.eventType || 'WEDDING',
-              date: event.startDate.toISOString(),
-              startTime: event.startTime || '18:00',
-              endTime: event.endTime || '23:30',
-              venueName: event.venueName || 'Grand Palace Banquets',
-              venueAddress: event.venueAddress || event.city,
-              venueLatitude: event.venueLatitude || 23.0225,
-              venueLongitude: event.venueLongitude || 72.5714,
-              dressCode: 'Royal Ceremonial Elegance',
-              transportStatus: 'SCHEDULED',
-              pickupWindow: '17:15',
-            },
-          ];
+    let ceremonies: any[] = [];
+
+    if (event.functions && event.functions.length > 0) {
+      ceremonies = event.functions.map((fn: any, idx: number) => {
+        const timeStr = fn.startTime instanceof Date ? fn.startTime.toISOString().substring(11, 16) : '18:00';
+        const startHour = parseInt(timeStr.split(':')[0], 10);
+        const pickupHour = isNaN(startHour) ? 17 : Math.max(0, startHour - 1);
+        const pickupWindow = `${String(pickupHour).padStart(2, '0')}:15`;
+
+        return {
+          id: fn.id,
+          sequence: `0${idx + 1}`,
+          name: fn.name,
+          eventType: fn.type || 'CEREMONY',
+          date: (fn.date || fn.startTime).toISOString(),
+          startTime: timeStr,
+          endTime: fn.endTime instanceof Date ? fn.endTime.toISOString().substring(11, 16) : '23:00',
+          venueName: fn.venueName || fn.place?.name || event.venueName || 'Ceremony Hall',
+          venueAddress: fn.venueAddress || fn.place?.address || event.venueAddress || event.city,
+          venueLatitude: fn.latitude || fn.place?.latitude || event.venueLatitude || 23.0225,
+          venueLongitude: fn.longitude || fn.place?.longitude || event.venueLongitude || 72.5714,
+          dressCode:
+            fn.guestRules ||
+            (fn.name.toLowerCase().includes('mehndi')
+              ? 'Pastel / Floral Festive'
+              : fn.name.toLowerCase().includes('sangeet')
+              ? 'Indo-Western Glamour'
+              : fn.name.toLowerCase().includes('haldi')
+              ? 'Auspicious Yellows & Traditional'
+              : fn.name.toLowerCase().includes('reception')
+              ? 'Formal Luxury & Black Tie'
+              : 'Traditional Festive Wedding Attire'),
+          transportRules: fn.transportRules || null,
+          transportStatus: 'SCHEDULED',
+          pickupWindow,
+        };
+      });
+    } else if (event.subEvents && event.subEvents.length > 0) {
+      ceremonies = event.subEvents.map((sub: any, idx: number) => ({
+        id: sub.id,
+        sequence: `0${idx + 1}`,
+        name: sub.name,
+        eventType: sub.eventType || 'CEREMONY',
+        date: sub.startDate.toISOString(),
+        startTime: sub.startTime || '18:00',
+        endTime: sub.endTime || '23:00',
+        venueName: sub.venueName || event.venueName || 'Ceremony Hall',
+        venueAddress: sub.venueAddress || event.venueAddress || event.city,
+        venueLatitude: sub.venueLatitude || event.venueLatitude || 23.0225,
+        venueLongitude: sub.venueLongitude || event.venueLongitude || 72.5714,
+        dressCode:
+          sub.name.toLowerCase().includes('mehndi')
+            ? 'Pastel / Floral Festive'
+            : sub.name.toLowerCase().includes('sangeet')
+            ? 'Indo-Western Glamour'
+            : sub.name.toLowerCase().includes('haldi')
+            ? 'Auspicious Yellows & Traditional'
+            : sub.name.toLowerCase().includes('reception')
+            ? 'Formal Luxury & Black Tie'
+            : 'Traditional Festive Wedding Attire',
+        transportStatus: 'SCHEDULED',
+        pickupWindow: `${sub.startTime ? sub.startTime.split(':')[0] : '17'}:15`,
+      }));
+    } else {
+      ceremonies = [
+        {
+          id: event.id,
+          sequence: '01',
+          name: event.name,
+          eventType: event.eventType || 'WEDDING',
+          date: event.startDate.toISOString(),
+          startTime: event.startTime || '18:00',
+          endTime: event.endTime || '23:30',
+          venueName: event.venueName || 'Grand Palace Banquets',
+          venueAddress: event.venueAddress || event.city,
+          venueLatitude: event.venueLatitude || 23.0225,
+          venueLongitude: event.venueLongitude || 72.5714,
+          dressCode: 'Royal Ceremonial Elegance',
+          transportStatus: 'SCHEDULED',
+          pickupWindow: '17:15',
+        },
+      ];
+    }
 
     return NextResponse.json({
       success: true,

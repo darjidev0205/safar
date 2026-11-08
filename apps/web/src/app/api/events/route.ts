@@ -39,6 +39,10 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         transportRequirements: true,
+        functions: {
+          where: { status: { not: 'ARCHIVED' } },
+          orderBy: { startTime: 'asc' },
+        },
         subEvents: {
           include: {
             transportRequirements: true,
@@ -87,6 +91,8 @@ export async function GET(req: NextRequest) {
         status: ev.status,
         parentEventId: ev.parentEventId,
         transportRequirements: transport,
+        functionsCount: ev.functions?.length || 0,
+        functions: ev.functions || [],
         subEventsCount: ev.subEvents?.length || 0,
         tripsCount: ev._count.trips,
         createdAt: ev.createdAt.toISOString(),

@@ -208,6 +208,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { status: 'subscribed', room };
   }
 
+  emitTripPosition(eventId: string, tripId: string, payload: any) {
+    if (this.server) {
+      // Versioned Blueprint event
+      this.server.to(`event:${eventId}`).emit('trip.position.v1', payload);
+      this.server.to(`trip:${tripId}`).emit('trip.position.v1', payload);
+      // Legacy backward-compatibility events
+      this.server.to(`event:${eventId}`).emit('locationPing', payload);
+      this.server.to(`trip:${tripId}`).emit('tripLocation', payload);
+    }
+  }
+
   emitLocationPing(eventId: string, tripId: string | null, pingData: any) {
     if (this.server) {
       this.server.to(`event:${eventId}`).emit('locationPing', pingData);

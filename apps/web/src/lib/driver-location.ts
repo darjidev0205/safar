@@ -1,17 +1,12 @@
 ﻿/**
- * SAFAR — Driver Location Service
+ * SAFAR — Driver Location Service & Offline Resilient Telemetry Pipeline
  *
- * Abstracts browser Geolocation API for the driver experience.
- * Architecture is prepared for future backend/WebSocket integration:
- *
- *   Driver browser
- *     → captureLocation()
- *       → (future) POST /api/driver/location
- *         → WebSocket broadcast
- *           → Host + Guest dashboards
- *
- * Currently captures real GPS coordinates when the driver grants
- * permission, without faking any data.
+ * Implements PR 4 Ground-Truth Telemetry Engine:
+ * - Browser Geolocation watchPosition with high accuracy
+ * - Monotonic sequence numbering
+ * - Offline localStorage queueing with retry on network reconnection
+ * - Batch upload to POST /api/driver/duties/:dutyId/location-batches
+ * - GPS Signal health metrics (Accuracy, Sync Latency, Queue Backlog)
  */
 
 export interface DriverPosition {
@@ -21,6 +16,7 @@ export interface DriverPosition {
   heading: number | null; // degrees, null if unavailable
   speed: number | null; // m/s, null if unavailable
   timestamp: number; // epoch ms
+  sequence?: number;
 }
 
 export type LocationError =
@@ -32,30 +28,149 @@ export type LocationError =
 export interface LocationServiceCallbacks {
   onPosition: (pos: DriverPosition) => void;
   onError: (error: LocationError) => void;
+  onSyncStateChange?: (state: TelemetrySyncState) => void;
 }
 
+export interface TelemetrySyncState {
+  isTracking: boolean;
+  isOnline: boolean;
+  queuedPingsCount: number;
+  lastSyncedAt: Date | null;
+  accuracyMeters: number | null;
+  lastError: string | null;
+}
+
+export interface QueuedPing {
+  sequence: number;
+  latitude: number;
+  longitude: number;
+  heading: number | null;
+  speed: number | null;
+  accuracy: number | null;
+  sampledAt: string;
+  tripId?: string | null;
+}
+
+const QUEUE_STORAGE_KEY = 'safar_driver_offline_pings_queue';
+const SEQ_STORAGE_KEY = 'safar_driver_sequence_counter';
+
 let _watchId: number | null = null;
+let _batchUploadTimer: any = null;
+let _currentDutyId: string | null = null;
+let _currentTripId: string | null = null;
+let _activeCallbacks: LocationServiceCallbacks | null = null;
+
+function getNextSequence(): number {
+  if (typeof window === 'undefined') return 1;
+  const current = parseInt(localStorage.getItem(SEQ_STORAGE_KEY) || '0', 10);
+  const next = current + 1;
+  localStorage.setItem(SEQ_STORAGE_KEY, next.toString());
+  return next;
+}
+
+function getStoredQueue(): QueuedPing[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredQueue(queue: QueuedPing[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue.slice(-500))); // Cap at 500
+  } catch (err) {
+    console.warn('Failed to persist driver telemetry queue to localStorage:', err);
+  }
+}
 
 /**
- * Start watching the driver's real GPS position.
- * Returns a cleanup function that stops watching.
- *
- * NOTE: No fake data is generated. If the browser doesn't support
- * geolocation or the user denies permission, onError is called.
+ * Upload queued location pings to server
  */
-export function startDriverLocationWatch(callbacks: LocationServiceCallbacks): () => void {
+export async function flushTelemetryQueue(dutyId: string): Promise<boolean> {
+  const queue = getStoredQueue();
+  if (queue.length === 0) return true;
+
+  const batchToUpload = queue.slice(0, 50); // Upload up to 50 pings in a batch
+
+  try {
+    const response = await fetch(`/api/driver/duties/${dutyId}/location-batches`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deviceId: typeof navigator !== 'undefined' ? navigator.userAgent : 'driver_web_client',
+        pings: batchToUpload,
+      }),
+    });
+
+    if (response.ok) {
+      // Remove uploaded items from queue
+      const uploadedSeqs = new Set(batchToUpload.map((p) => p.sequence));
+      const remainingQueue = queue.filter((p) => !uploadedSeqs.has(p.sequence));
+      saveStoredQueue(remainingQueue);
+
+      if (_activeCallbacks?.onSyncStateChange) {
+        _activeCallbacks.onSyncStateChange({
+          isTracking: Boolean(_watchId !== null),
+          isOnline: true,
+          queuedPingsCount: remainingQueue.length,
+          lastSyncedAt: new Date(),
+          accuracyMeters: batchToUpload[batchToUpload.length - 1]?.accuracy ?? null,
+          lastError: null,
+        });
+      }
+      return true;
+    } else {
+      console.warn(`Location batch upload failed with status ${response.status}`);
+      return false;
+    }
+  } catch (err: any) {
+    console.warn('Network offline or error uploading telemetry batch:', err?.message);
+    if (_activeCallbacks?.onSyncStateChange) {
+      _activeCallbacks.onSyncStateChange({
+        isTracking: Boolean(_watchId !== null),
+        isOnline: false,
+        queuedPingsCount: queue.length,
+        lastSyncedAt: null,
+        accuracyMeters: null,
+        lastError: err?.message || 'Network offline',
+      });
+    }
+    return false;
+  }
+}
+
+/**
+ * Start watching the driver's real GPS position and upload batches.
+ * Returns a cleanup function that stops watching.
+ */
+export function startDriverLocationWatch(
+  callbacks: LocationServiceCallbacks,
+  dutyId?: string,
+  tripId?: string
+): () => void {
   if (typeof window === 'undefined' || !navigator.geolocation) {
     callbacks.onError('NOT_SUPPORTED');
     return () => {};
   }
 
+  _currentDutyId = dutyId || null;
+  _currentTripId = tripId || null;
+  _activeCallbacks = callbacks;
+
   const options: PositionOptions = {
     enableHighAccuracy: true,
     timeout: 10_000,
-    maximumAge: 5_000,
+    maximumAge: 3_000,
   };
 
   const handleSuccess = (pos: GeolocationPosition) => {
+    const sequence = getNextSequence();
     const driverPos: DriverPosition = {
       latitude: pos.coords.latitude,
       longitude: pos.coords.longitude,
@@ -63,11 +178,29 @@ export function startDriverLocationWatch(callbacks: LocationServiceCallbacks): (
       heading: pos.coords.heading,
       speed: pos.coords.speed,
       timestamp: pos.timestamp,
+      sequence,
     };
+
     callbacks.onPosition(driverPos);
 
-    // TODO: When backend is ready, POST position to /api/driver/location
-    // sendPositionToBackend(driverPos);
+    // Queue point in local storage
+    const currentQueue = getStoredQueue();
+    currentQueue.push({
+      sequence,
+      latitude: driverPos.latitude,
+      longitude: driverPos.longitude,
+      heading: driverPos.heading,
+      speed: driverPos.speed,
+      accuracy: driverPos.accuracy,
+      sampledAt: new Date(driverPos.timestamp).toISOString(),
+      tripId: _currentTripId,
+    });
+    saveStoredQueue(currentQueue);
+
+    // If queue reaches 5 items or if dutyId is set, trigger flush
+    if (_currentDutyId && currentQueue.length >= 5) {
+      flushTelemetryQueue(_currentDutyId);
+    }
   };
 
   const handleError = (err: GeolocationPositionError) => {
@@ -90,11 +223,25 @@ export function startDriverLocationWatch(callbacks: LocationServiceCallbacks): (
 
   _watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, options);
 
+  // Periodic flush every 7 seconds while active
+  if (_currentDutyId) {
+    _batchUploadTimer = setInterval(() => {
+      if (_currentDutyId) {
+        flushTelemetryQueue(_currentDutyId);
+      }
+    }, 7000);
+  }
+
   return () => {
     if (_watchId !== null) {
       navigator.geolocation.clearWatch(_watchId);
       _watchId = null;
     }
+    if (_batchUploadTimer !== null) {
+      clearInterval(_batchUploadTimer);
+      _batchUploadTimer = null;
+    }
+    _activeCallbacks = null;
   };
 }
 
@@ -103,7 +250,7 @@ export function startDriverLocationWatch(callbacks: LocationServiceCallbacks): (
  */
 export function getCurrentDriverPosition(): Promise<DriverPosition> {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       reject(new Error('NOT_SUPPORTED'));
       return;
     }

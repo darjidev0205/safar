@@ -72,6 +72,10 @@ export default function GuestRidesPage() {
   const statusConfig = getStatusBadge(trip.status);
   const etaMinutes = Math.max(1, Math.round(trip.telemetry.remainingDistanceKm * 2.2));
 
+  const isGpsStale =
+    !trip.telemetry.lastPingAt ||
+    Date.now() - new Date(trip.telemetry.lastPingAt).getTime() > 60000;
+
   return (
     <div className="space-y-4 max-w-md md:max-w-3xl mx-auto font-sans">
       {/* ========================================================================= */}
@@ -95,10 +99,23 @@ export default function GuestRidesPage() {
           className="w-full h-[280px] sm:h-[340px] md:h-[400px]"
         />
 
-        {/* Live status badge */}
-        <div className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-md shadow-xs text-charcoal-800 flex items-center gap-2 text-[11px] font-semibold border border-warm-300">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Live GPS Telemetry</span>
+        {/* Live vs Stale status badge */}
+        <div className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md shadow-xs text-charcoal-800 flex items-center gap-2 text-[11px] font-semibold border border-warm-300">
+          {isGpsStale ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-amber-800 font-bold uppercase text-[10px] tracking-wider">
+                Stale Signal (Delayed)
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-emerald-800 font-bold uppercase text-[10px] tracking-wider">
+                Live GPS Telemetry
+              </span>
+            </>
+          )}
         </div>
       </div>
 

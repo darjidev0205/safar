@@ -725,7 +725,9 @@ model LocationPing {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   tripId     String?  @db.ObjectId
   driverId   String   @db.ObjectId
+  dutyId     String?  @db.ObjectId
   vehicleId  String?  @db.ObjectId
+  sequence   Int?
   latitude   Float
   longitude  Float
   heading    Float?
@@ -739,8 +741,10 @@ model LocationPing {
 
   @@index([tripId])
   @@index([driverId])
+  @@index([dutyId])
   @@index([timestamp])
   @@index([tripId, timestamp])
+  @@index([driverId, sequence])
   @@map("location_pings")
 }
 

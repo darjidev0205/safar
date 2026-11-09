@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Car, CheckCircle2, AlertTriangle, ShieldCheck, Gauge, Fuel } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Car, CheckCircle2, AlertTriangle, ShieldCheck, Gauge, Fuel, Radio, Wifi, Navigation } from 'lucide-react';
 import { DutyStatus } from '@safar/types';
+import { startDriverLocationWatch, TelemetrySyncState } from '../../../lib/driver-location';
 
 export default function DriverDutyPage() {
   const [dutyStatus, setDutyStatus] = useState<DutyStatus>(DutyStatus.ON_DUTY);
@@ -17,6 +18,38 @@ export default function DriverDutyPage() {
     fuelAdequate: true,
   });
   const [savedNotice, setSavedNotice] = useState(false);
+  const [telemetryState, setTelemetryState] = useState<TelemetrySyncState>({
+    isTracking: false,
+    isOnline: true,
+    queuedPingsCount: 0,
+    lastSyncedAt: null,
+    accuracyMeters: null,
+    lastError: null,
+  });
+
+  useEffect(() => {
+    if (dutyStatus === DutyStatus.ON_DUTY || dutyStatus === DutyStatus.AVAILABLE) {
+      const cleanup = startDriverLocationWatch({
+        onPosition: (pos) => {
+          setTelemetryState((prev) => ({
+            ...prev,
+            isTracking: true,
+            accuracyMeters: pos.accuracy,
+          }));
+        },
+        onError: (err) => {
+          setTelemetryState((prev) => ({
+            ...prev,
+            lastError: err,
+          }));
+        },
+        onSyncStateChange: (state) => {
+          setTelemetryState(state);
+        },
+      });
+      return cleanup;
+    }
+  }, [dutyStatus]);
 
   const toggleCheck = (key: keyof typeof checklist) => {
     setChecklist({ ...checklist, [key]: !checklist[key] });
@@ -40,6 +73,38 @@ export default function DriverDutyPage() {
         <p className="text-xs text-charcoal-500">
           Pre-shift fleet inspection checklist and active duty availability log.
         </p>
+      </div>
+
+      {/* GPS Signal Health Banner */}
+      <div className="p-4 rounded-3xl bg-white border border-[#E8E2D9] shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+            <Radio className="w-4 h-4 animate-pulse" />
+          </div>
+          <div>
+            <div className="font-bold text-charcoal-900 flex items-center gap-1.5">
+              <span>GPS Telemetry Pipeline</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-semibold">
+                ACTIVE
+              </span>
+            </div>
+            <div className="text-[11px] text-charcoal-500">
+              {telemetryState.accuracyMeters
+                ? `Accuracy: ±${Math.round(telemetryState.accuracyMeters)}m`
+                : 'Acquiring GPS fix…'}
+              {telemetryState.queuedPingsCount > 0 && ` • ${telemetryState.queuedPingsCount} queued offline`}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <div className="text-[10px] uppercase font-bold text-charcoal-400">Offline Queue</div>
+            <div className="font-bold text-charcoal-700 text-xs">
+              {telemetryState.queuedPingsCount === 0 ? 'Synced' : `${telemetryState.queuedPingsCount} pending`}
+            </div>
+          </div>
+        </div>
       </div>
 
       {savedNotice && (

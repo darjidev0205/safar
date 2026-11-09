@@ -81,6 +81,22 @@ export const LocationPingSchema = z.object({
   timestamp: z.string().datetime(),
 });
 
+export const LocationBatchItemSchema = z.object({
+  sequence: z.number().int().min(0),
+  tripId: IdSchema.optional().nullable(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  heading: z.number().min(0).max(360).optional().nullable(),
+  speed: z.number().min(0).optional().nullable(),
+  accuracy: z.number().min(0).max(500).optional().nullable(),
+  sampledAt: z.string().datetime().or(z.date()),
+});
+
+export const LocationBatchIngestSchema = z.object({
+  deviceId: z.string().min(1).optional(),
+  pings: z.array(LocationBatchItemSchema).min(1).max(100),
+});
+
 export const UpdateDutyStatusSchema = z.object({
   dutyStatus: z.nativeEnum(DutyStatus),
 });

@@ -100,3 +100,22 @@ export const LocationBatchIngestSchema = z.object({
 export const UpdateDutyStatusSchema = z.object({
   dutyStatus: z.nativeEnum(DutyStatus),
 });
+
+export const SOSAlertSchema = z.object({
+  eventId: IdSchema,
+  tripId: IdSchema.optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  reason: z.string().max(500).optional().nullable(),
+});
+
+export const AcknowledgeNotificationSchema = z.object({
+  notificationId: IdSchema,
+});
+
+export const DriverTripTransitionSchema = z.object({
+  toStatus: z.nativeEnum(TripStatus),
+  reason: z.string().max(255).optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+});

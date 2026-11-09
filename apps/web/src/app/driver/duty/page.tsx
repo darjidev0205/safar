@@ -18,6 +18,8 @@ export default function DriverDutyPage() {
     fuelAdequate: true,
   });
   const [savedNotice, setSavedNotice] = useState(false);
+  const [sosNotice, setSosNotice] = useState<string | null>(null);
+  const [sosTriggering, setSosTriggering] = useState(false);
   const [telemetryState, setTelemetryState] = useState<TelemetrySyncState>({
     isTracking: false,
     isOnline: true,
@@ -61,6 +63,48 @@ export default function DriverDutyPage() {
     setTimeout(() => setSavedNotice(false), 2500);
   };
 
+  const handleTriggerSOS = async () => {
+    if (
+      !confirm(
+        '🚨 Are you sure you want to trigger an Emergency SOS Alert? This will immediately alert the event transportation desk, organizers, and dispatch team.'
+      )
+    ) {
+      return;
+    }
+    setSosTriggering(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (typeof window !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        } else {
+          reject(new Error('Geolocation unavailable'));
+        }
+      }).catch(() => null);
+
+      const savedEventId =
+        (typeof window !== 'undefined' && localStorage.getItem('safar_active_event_id')) || '';
+
+      const res = await fetch('/api/tracking/sos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: savedEventId || 'current_event',
+          latitude: pos?.coords.latitude,
+          longitude: pos?.coords.longitude,
+          reason: 'Chauffeur emergency SOS triggered from duty dashboard',
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'SOS trigger failed');
+      setSosNotice('🚨 Emergency SOS alert dispatched to host desk! Dispatch coordinator has been notified.');
+    } catch (err: any) {
+      setSosNotice(`SOS Alert failed: ${err.message}`);
+    } finally {
+      setSosTriggering(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto font-sans">
       <div className="space-y-1">
@@ -97,15 +141,39 @@ export default function DriverDutyPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="text-[10px] uppercase font-bold text-charcoal-400">Offline Queue</div>
             <div className="font-bold text-charcoal-700 text-xs">
               {telemetryState.queuedPingsCount === 0 ? 'Synced' : `${telemetryState.queuedPingsCount} pending`}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleTriggerSOS}
+            disabled={sosTriggering}
+            className="px-3.5 py-1.5 rounded-2xl bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-red-700 active:scale-95 transition-all shadow-xs"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>{sosTriggering ? 'Alerting...' : 'SOS Help'}</span>
+          </button>
         </div>
       </div>
+
+      {sosNotice && (
+        <div className="p-4 rounded-3xl bg-red-50 border border-red-200 text-red-900 text-xs flex items-center justify-between gap-2.5 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{sosNotice}</span>
+          </div>
+          <button
+            onClick={() => setSosNotice(null)}
+            className="text-[10px] font-bold underline hover:text-red-700"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {savedNotice && (
         <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2.5 shadow-xs animate-in fade-in">

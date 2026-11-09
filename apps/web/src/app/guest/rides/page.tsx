@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Navigation,
   QrCode,
   ArrowRight,
@@ -25,9 +26,36 @@ import { useRealtimeTrip } from '../../../lib/use-realtime-trip';
 export default function GuestRidesPage() {
   const { profile } = useAuth();
   const [showBoardingModal, setShowBoardingModal] = useState(false);
+  const [sosNotice, setSosNotice] = useState<string | null>(null);
+  const [sosLoading, setSosLoading] = useState(false);
 
   // Connect to live real-time trip telemetry via Firestore listener + REST fallback
   const trip = useRealtimeTrip('tr_101');
+
+  const handleGuestSOS = async () => {
+    if (
+      !confirm(
+        '🚨 Trigger Emergency SOS? This alerts the wedding transportation coordinator and event desk immediately.'
+      )
+    ) {
+      return;
+    }
+    setSosLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${trip.tripId || 'current'}/sos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Guest emergency SOS from ride tracking screen' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'SOS alert failed');
+      setSosNotice('🚨 Emergency SOS alert sent to event desk. A coordinator will assist you immediately.');
+    } catch (err: any) {
+      setSosNotice(`SOS Alert failed: ${err.message}`);
+    } finally {
+      setSosLoading(false);
+    }
+  };
 
   // Status mapping
   const getStatusBadge = (status: string) => {
@@ -176,8 +204,31 @@ export default function GuestRidesPage() {
             >
               <QrCode className="w-4 h-4" />
             </button>
+            <button
+              onClick={handleGuestSOS}
+              disabled={sosLoading}
+              className="p-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white transition-all shadow-xs flex items-center justify-center active:scale-95"
+              title="Emergency SOS Help"
+            >
+              <AlertTriangle className="w-4 h-4" />
+            </button>
           </div>
         </div>
+
+        {sosNotice && (
+          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{sosNotice}</span>
+            </div>
+            <button
+              onClick={() => setSosNotice(null)}
+              className="text-[10px] font-bold underline hover:text-red-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Route Pick-up & Destination Segment */}
         <div className="p-3.5 rounded-2xl bg-warm-50 border border-[#E5DACB] space-y-3">

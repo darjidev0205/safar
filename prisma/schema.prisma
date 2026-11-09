@@ -764,30 +764,39 @@ model TripEvent {
 }
 
 model Notification {
-  id         String               @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String               @db.ObjectId
-  title      String
-  message    String
-  channel    NotificationChannel  @default(IN_APP)
-  isRead     Boolean              @default(false)
-  createdAt  DateTime             @default(now())
+  id             String               @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String               @db.ObjectId
+  eventId        String?              @db.ObjectId
+  type           String?
+  title          String
+  message        String
+  channel        NotificationChannel  @default(IN_APP)
+  isRead         Boolean              @default(false)
+  idempotencyKey String?
+  metadata       Json?
+  acknowledgedAt DateTime?
+  createdAt      DateTime             @default(now())
 
-  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deliveries NotificationDelivery[]
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries     NotificationDelivery[]
 
   @@index([userId])
+  @@index([eventId])
+  @@index([idempotencyKey])
   @@map("notifications")
 }
 
 model NotificationDelivery {
-  id             String               @id @default(auto()) @map("_id") @db.ObjectId
-  notificationId String               @db.ObjectId
-  channel        NotificationChannel
-  status         String               @default("SENT")
-  error          String?
-  deliveredAt    DateTime             @default(now())
+  id                String               @id @default(auto()) @map("_id") @db.ObjectId
+  notificationId    String               @db.ObjectId
+  channel           NotificationChannel
+  status            String               @default("SENT")
+  providerMessageId String?
+  attemptCount      Int                  @default(1)
+  error             String?
+  deliveredAt       DateTime             @default(now())
 
-  notification   Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notification      Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@index([notificationId])
   @@map("notification_deliveries")

@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../websocket/events.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { DutyStatus, TripStatus } from '@prisma/client';
 
 export const EARTH_RADIUS_KM = 6371.0088;
@@ -31,6 +32,7 @@ export class TrackingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsGateway: EventsGateway,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -301,6 +303,20 @@ export class TrackingService {
           },
         });
 
+        // PR 5: Trigger state-driven 10-minute ETA crossing notification strictly once
+        if (authoritativeEtaMinutes !== null && authoritativeRemainingKm !== null && this.notificationsService) {
+          const etaSeconds = authoritativeEtaMinutes * 60;
+          if (etaSeconds <= 600) {
+            try {
+              await this.notificationsService.checkAndSendEtaApproaching(
+                activeTrip.id,
+                etaSeconds,
+                authoritativeRemainingKm
+              );
+            } catch (err) {}
+          }
+        }
+
         // 7. Emit Versioned trip.position.v1 WebSocket Event
         const versionedTelemetryPayload = {
           type: 'trip.position.v1',
@@ -432,7 +448,14 @@ export class TrackingService {
       const isStale = !lastPingTime || (now - lastPingTime) > STALE_GPS_THRESHOLD_MS;
       const staleSeconds = lastPingTime ? Math.max(0, Math.floor((now - lastPingTime) / 1000)) : null;
 
-      if (isStale) staleCount++;
+      if (isStale) {
+        staleCount++;
+        if (staleSeconds && staleSeconds > 120 && activeTrip && activeTrip.driverId && this.notificationsService) {
+          this.notificationsService
+            .sendGpsStaleAlert(eventId, activeTrip.id, activeTrip.driverId, staleSeconds)
+            .catch(() => {});
+        }
+      }
       if (activeTrip?.status === TripStatus.IN_TRANSIT && !isStale) activeMovingCount++;
 
       return {

@@ -91,6 +91,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       client.data.user = user;
+      client.join(`user:${user.id}`);
       this.logger.log(`Authenticated socket connected: ${client.id} (User: ${user.fullName}, Role: ${user.role})`);
     } catch (err: any) {
       this.logger.error(`Error during socket connection auth: ${err?.message}`);
@@ -238,6 +239,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   emitSOSAlert(eventId: string, alertData: any) {
     if (this.server) {
       this.server.to(`event:${eventId}`).emit('sosAlert', alertData);
+    }
+  }
+
+  emitNotification(userId: string, notification: any) {
+    if (this.server) {
+      this.server.to(`user:${userId}`).emit('notification', notification);
     }
   }
 }

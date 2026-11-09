@@ -8,10 +8,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TripStatus } from '@safar/types';
 import { isValidTripTransition } from '@safar/config';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class TripsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async listTrips(eventId: string, options?: { functionId?: string }) {
     const where: any = { eventId };
@@ -291,7 +295,7 @@ export class TripsService {
       }
     }
 
-    return this.prisma.trip.update({
+    const updatedTrip = await this.prisma.trip.update({
       where: { id: tripId },
       data: {
         ...(data.driverId ? { driverId: data.driverId, status: trip.status === TripStatus.SCHEDULED ? TripStatus.ASSIGNED : trip.status } : {}),
@@ -303,6 +307,14 @@ export class TripsService {
         function: true,
       },
     });
+
+    if (data.driverId) {
+      try {
+        await this.notificationsService.sendTripAssigned(tripId);
+      } catch (err) {}
+    }
+
+    return updatedTrip;
   }
 
   async updateTripStatus(tripId: string, targetStatus: TripStatus, actorId?: string, reason?: string) {
@@ -368,6 +380,21 @@ export class TripsService {
       },
       { timeout: 30000, maxWait: 15000 }
     );
+
+    // Trigger state-driven multi-channel notification
+    try {
+      if (targetStatus === TripStatus.ARRIVED) {
+        await this.notificationsService.sendTripArrived(tripId);
+      } else if (targetStatus === TripStatus.IN_TRANSIT) {
+        await this.notificationsService.sendRideStarted(tripId);
+      } else if (targetStatus === TripStatus.COMPLETED) {
+        await this.notificationsService.sendTripCompleted(tripId);
+      } else if (targetStatus === TripStatus.CANCELLED) {
+        await this.notificationsService.sendTripCancelled(tripId, reason);
+      }
+    } catch (notifErr) {
+      // Non-blocking notification dispatch error
+    }
 
     return updated;
   }
@@ -448,6 +475,14 @@ export class TripsService {
     if (trip.status === TripStatus.ARRIVED) {
       await this.updateTripStatus(tripId, TripStatus.BOARDING, undefined, 'Guest boarded with valid code');
     }
+
+    try {
+      await this.notificationsService.sendBoardingVerified(
+        tripId,
+        booking.id,
+        booking.guest?.userId || undefined
+      );
+    } catch (notifErr) {}
 
     return {
       verified: true,

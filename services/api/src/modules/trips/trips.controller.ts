@@ -2,12 +2,16 @@ import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, BadRequest
 import { TripsService } from './trips.service';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UpdateTripStatusSchema, VerifyBoardingSchema } from '@safar/validation';
+import { UpdateTripStatusSchema, VerifyBoardingSchema, DriverTripTransitionSchema, SOSAlertSchema } from '@safar/validation';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Controller('api/v1/trips')
 @UseGuards(FirebaseAuthGuard)
 export class TripsController {
-  constructor(private readonly tripsService: TripsService) {}
+  constructor(
+    private readonly tripsService: TripsService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   @Get()
   async listTrips(
@@ -50,6 +54,39 @@ export class TripsController {
   ) {
     UpdateTripStatusSchema.parse(body);
     return this.tripsService.updateTripStatus(id, body.status, user.id, body.reason);
+  }
+
+  @Post(':id/transitions')
+  async transitionTrip(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: any,
+  ) {
+    const validated = DriverTripTransitionSchema.parse(body);
+    return this.tripsService.updateTripStatus(
+      id,
+      validated.toStatus as any,
+      user.id,
+      validated.reason || undefined
+    );
+  }
+
+  @Post(':id/sos')
+  async triggerTripSOS(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: any,
+  ) {
+    const trip = await this.tripsService.getTrip(id);
+    return this.notificationsService.sendSOSAlert({
+      eventId: trip.eventId,
+      tripId: id,
+      reporterUserId: user.id,
+      reporterRole: user.role,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      reason: body.reason,
+    });
   }
 
   @Post(':id/verify-boarding')

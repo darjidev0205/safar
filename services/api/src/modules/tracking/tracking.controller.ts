@@ -11,12 +11,16 @@ import {
 import { TrackingService } from './tracking.service';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { LocationPingSchema, LocationBatchIngestSchema } from '@safar/validation';
+import { LocationPingSchema, LocationBatchIngestSchema, SOSAlertSchema } from '@safar/validation';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Controller('api/v1')
 @UseGuards(FirebaseAuthGuard)
 export class TrackingController {
-  constructor(private readonly trackingService: TrackingService) {}
+  constructor(
+    private readonly trackingService: TrackingService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * PR 4: Resilient Driver Location Batch Ingestion
@@ -58,6 +62,27 @@ export class TrackingController {
     return this.trackingService.getBookingLiveSnapshot(bookingId, user.id);
   }
 
+  /**
+   * PR 5: Emergency SOS Safety Escalation
+   * POST /api/v1/tracking/sos
+   */
+  @Post('tracking/sos')
+  async triggerSOS(
+    @CurrentUser() user: any,
+    @Body() body: any
+  ) {
+    const validated = SOSAlertSchema.parse(body);
+    return this.notificationsService.sendSOSAlert({
+      eventId: validated.eventId,
+      tripId: validated.tripId || undefined,
+      reporterUserId: user.id,
+      reporterRole: user.role,
+      latitude: validated.latitude || undefined,
+      longitude: validated.longitude || undefined,
+      reason: validated.reason || undefined,
+    });
+  }
+
   // --- Backward Compatibility Endpoints ---
 
   @Post('tracking/ping')
@@ -70,10 +95,5 @@ export class TrackingController {
   async getFleetPings(@Query('eventId') eventId: string) {
     if (!eventId) throw new BadRequestException('eventId query parameter is required');
     return this.trackingService.getFleetPings(eventId);
-  }
-
-  @Post('tracking/sos')
-  async triggerSOS(@CurrentUser() user: any, @Body() body: any) {
-    return this.trackingService.triggerEmergencySOS(user.id, body);
   }
 }

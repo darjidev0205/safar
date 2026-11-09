@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SAFAR — Driver Location Service & Offline Resilient Telemetry Pipeline
  *
  * Implements PR 4 Ground-Truth Telemetry Engine:

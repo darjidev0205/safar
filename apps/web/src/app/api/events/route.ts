@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/db';
 import { getAuthenticatedHost } from '../../../lib/auth-server';
-import { generateUniqueEventAccessCodes } from '../../../lib/access-code';
+import {
+  generateUniqueEventAccessCodes,
+  createGuestAccessCodeRecord,
+  createDriverInviteCodeRecord,
+} from '../../../lib/access-code';
 import { EventStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -230,6 +234,24 @@ export async function POST(req: NextRequest) {
           status: EventStatus.ACTIVE,
         },
       });
+
+      // Register authoritative GUEST_EVENT access code in centralized registry
+      await createGuestAccessCodeRecord(tx, {
+        accountId: context.account.id,
+        eventId: newEvent.id,
+        creatorId: context.user.id,
+        customCode: guestAccessCode,
+      });
+
+      // Register initial chauffeur invitation code in centralized registry
+      if (driverAccessCode) {
+        await createDriverInviteCodeRecord(tx, {
+          accountId: context.account.id,
+          eventId: newEvent.id,
+          creatorId: context.user.id,
+          recipientName: 'General Chauffeur Code',
+        });
+      }
 
       // Also create Venue place record if venue info provided
       if (venueName) {

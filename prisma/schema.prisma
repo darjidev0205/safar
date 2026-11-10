@@ -84,6 +84,11 @@ enum AccessRequestStatus {
   REJECTED
 }
 
+enum AccessCodePurpose {
+  GUEST_EVENT
+  DRIVER_INVITE
+}
+
 model User {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   firebaseUid  String   @unique
@@ -103,6 +108,8 @@ model User {
   accessRequests  EventAccessRequest[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  createdAccessCodes  EventAccessCode[] @relation("AccessCodeCreator")
+  redeemedAccessCodes EventAccessCode[] @relation("AccessCodeRedeemer")
 
   @@map("users")
 }
@@ -115,14 +122,15 @@ model Account {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members      AccountMember[]
-  events       Event[]
-  vehicles     Vehicle[]
-  drivers      Driver[]
-  invitations  Invitation[]
-  auditLogs    AuditLog[]
-  families     Family[]
-  allGuests    Guest[]
+  members          AccountMember[]
+  events           Event[]
+  vehicles         Vehicle[]
+  drivers          Driver[]
+  invitations      Invitation[]
+  auditLogs        AuditLog[]
+  families         Family[]
+  allGuests        Guest[]
+  eventAccessCodes EventAccessCode[]
 
   @@map("accounts")
 }
@@ -184,8 +192,8 @@ model Event {
   venueLongitude      Float?
   expectedGuestCount  Int         @default(0)
   joinCode            String      @unique // Master Event Code (e.g. JPR26A)
-  driverAccessCode    String?     @unique
-  guestAccessCode     String?     @unique
+  driverAccessCode    String?
+  guestAccessCode     String?
   bannerUrl           String?
   description         String?
   status              EventStatus @default(ACTIVE)
@@ -212,6 +220,7 @@ model Event {
   eventGuests           EventGuest[]
   driverEvents          DriverEvent[]
   invitations           Invitation[]
+  eventAccessCodes      EventAccessCode[]
 
   @@index([accountId])
   @@index([parentEventId])
@@ -270,6 +279,42 @@ model EventCode {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@map("event_codes")
+}
+
+model EventAccessCode {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  accountId        String            @db.ObjectId
+  eventId          String            @db.ObjectId
+  purpose          AccessCodePurpose
+  code             String            // Normalized uppercase alphanumeric code (e.g. MK7QP4WN8T)
+  codeDigest       String            @unique // HMAC-SHA256 digest with global unique index
+  displayCode      String            // Human-readable formatted display code (e.g. MK7QP-4WN8T)
+  isActive         Boolean           @default(true)
+  isSingleUse      Boolean           @default(false)
+  maxUses          Int?
+  useCount         Int               @default(0)
+  createdAt        DateTime          @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revokedBy        String?           @db.ObjectId
+  redeemedAt       DateTime?
+  redeemedByUserId String?           @db.ObjectId
+  recipientPhone   String?
+  recipientEmail   String?
+  recipientName    String?
+  metadata         String?           // JSON serialized metadata
+  createdBy        String            @db.ObjectId
+  updatedAt        DateTime          @updatedAt
+
+  account          Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  event            Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  creator          User              @relation("AccessCodeCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  redeemer         User?             @relation("AccessCodeRedeemer", fields: [redeemedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([eventId, purpose, isActive])
+  @@index([code])
+  @@map("event_access_codes")
 }
 
 model Place {

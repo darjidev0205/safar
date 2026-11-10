@@ -1,4 +1,5 @@
-import { PrismaClient, Role, TripStatus, DutyStatus, PlaceType, NotificationChannel } from '@prisma/client';
+import { PrismaClient, Role, DutyStatus, PlaceType, NotificationChannel } from '@prisma/client';
+import { TripStatus } from '@safar/types';
 import { NotificationsService } from '../services/api/src/modules/notifications/notifications.service';
 import { ReportsService } from '../services/api/src/modules/reports/reports.service';
 import { TripsService } from '../services/api/src/modules/trips/trips.service';
@@ -545,7 +546,7 @@ async function runPR5OperationsSuite() {
       await prisma.event.deleteMany({ where: { id: eid } }).catch(() => {});
     }
     for (const aid of createdAccountIds) {
-      await prisma.place.deleteMany({ where: { accountId: aid } }).catch(() => {});
+      await prisma.place.deleteMany({ where: { event: { accountId: aid } } }).catch(() => {});
       await prisma.vehicle.deleteMany({ where: { accountId: aid } }).catch(() => {});
       await prisma.accountMember.deleteMany({ where: { accountId: aid } }).catch(() => {});
       await prisma.account.deleteMany({ where: { id: aid } }).catch(() => {});

@@ -152,6 +152,28 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
           ? localStorage.getItem('safar_auth_token') || profile?.email || ''
           : '';
 
+      // First attempt direct redemption via one-time driver invitation
+      const joinRes = await fetch('/api/events/join/driver', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-user-id': profile?.id || '',
+          'x-user-email': profile?.email || '',
+          'x-user-uid': profile?.firebaseUid || '',
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      const joinData = await joinRes.json();
+      if (joinRes.ok && joinData.success) {
+        setIsJoinModalOpen(false);
+        setDriverCodeInput('');
+        fetchMyEvents();
+        return;
+      }
+
+      // Fallback: request access if host requires manual gate approval
       const res = await fetch('/api/events/access-requests', {
         method: 'POST',
         headers: {
@@ -171,9 +193,9 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
         setActiveEventName(data.eventName || 'Wedding Event');
         fetchMyEvents();
       } else {
-        setSubmitError(data.error?.message || 'Invalid access code. Please check and try again.');
+        setSubmitError(joinData.error?.message || data.error?.message || 'Invalid access code. Please check with your wedding host.');
       }
-    } catch (err) {
+    } catch {
       setSubmitError('Network error while requesting event access.');
     } finally {
       setSubmitting(false);

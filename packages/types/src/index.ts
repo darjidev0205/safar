@@ -82,6 +82,36 @@ export enum GuestFunctionStatus {
   REMOVED = 'REMOVED',
 }
 
+export enum AccessCodePurpose {
+  GUEST_EVENT = 'GUEST_EVENT',
+  DRIVER_INVITE = 'DRIVER_INVITE',
+}
+
+export interface EventAccessCodeModel {
+  id: string;
+  accountId: string;
+  eventId: string;
+  purpose: AccessCodePurpose;
+  code: string;
+  codeDigest: string;
+  displayCode: string;
+  isActive: boolean;
+  isSingleUse: boolean;
+  maxUses?: number | null;
+  useCount: number;
+  createdAt: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  revokedBy?: string | null;
+  redeemedAt?: string | null;
+  redeemedByUserId?: string | null;
+  recipientPhone?: string | null;
+  recipientEmail?: string | null;
+  recipientName?: string | null;
+  createdBy: string;
+  metadata?: any;
+}
+
 export interface UserProfile {
   id: string;
   firebaseUid: string;

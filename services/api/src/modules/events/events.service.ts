@@ -1,15 +1,32 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@safar/types';
+import { AccessCodePurpose } from '@prisma/client';
 import * as crypto from 'crypto';
 
-function generateJoinCode(length = 6): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
+const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRTUVWXYZ';
+const HMAC_SECRET = process.env.ACCESS_CODE_HMAC_SECRET || 'safar-production-event-access-hmac-v1';
+
+function normalizeCode(raw: string): string {
+  return raw.replace(/[^A-Za-z0-9]/g, '').trim().toUpperCase();
+}
+
+function computeDigest(normalized: string): string {
+  return crypto.createHmac('sha256', HMAC_SECRET).update(normalized).digest('hex');
+}
+
+function formatDisplay(clean: string): string {
+  if (clean.length === 10) return `${clean.slice(0, 5)}-${clean.slice(5)}`;
+  return clean;
+}
+
+function generateSecureCode(length = 10): { code: string; displayCode: string } {
+  let code = '';
+  const bytes = crypto.randomBytes(length);
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
   }
-  return result;
+  return { code, displayCode: formatDisplay(code) };
 }
 
 @Injectable()
@@ -66,23 +83,54 @@ export class EventsService {
   }
 
   async findByCode(code: string) {
-    const formattedCode = code.trim().toUpperCase();
-    const event = await this.prisma.event.findFirst({
+    const formattedCode = normalizeCode(code);
+    const digest = computeDigest(formattedCode);
+
+    // 1. Centralized registry lookup
+    const accessCode = await this.prisma.eventAccessCode.findFirst({
       where: {
         OR: [
-          { joinCode: formattedCode },
-          { eventCodes: { some: { code: formattedCode, isActive: true } } },
+          { codeDigest: digest },
+          { code: formattedCode },
         ],
+        isActive: true,
       },
       include: {
-        places: true,
-        functions: {
-          where: { status: { not: 'ARCHIVED' } },
-          include: { place: true },
-          orderBy: { startTime: 'asc' },
+        event: {
+          include: {
+            places: true,
+            functions: {
+              where: { status: { not: 'ARCHIVED' } },
+              include: { place: true },
+              orderBy: { startTime: 'asc' },
+            },
+          },
         },
       },
     });
+
+    let event = accessCode?.event || null;
+
+    // 2. Legacy fallback
+    if (!event) {
+      event = await this.prisma.event.findFirst({
+        where: {
+          OR: [
+            { joinCode: formattedCode },
+            { guestAccessCode: formattedCode },
+            { eventCodes: { some: { code: formattedCode, isActive: true } } },
+          ],
+        },
+        include: {
+          places: true,
+          functions: {
+            where: { status: { not: 'ARCHIVED' } },
+            include: { place: true },
+            orderBy: { startTime: 'asc' },
+          },
+        },
+      });
+    }
 
     if (!event) {
       throw new NotFoundException(`No active event found with code ${formattedCode}`);
@@ -95,6 +143,7 @@ export class EventsService {
       startDate: event.startDate,
       endDate: event.endDate,
       joinCode: event.joinCode,
+      guestAccessCode: event.guestAccessCode,
       bannerUrl: event.bannerUrl,
       description: event.description,
       places: event.places,
@@ -131,43 +180,71 @@ export class EventsService {
       });
     }
 
-    // Generate unique code
-    let joinCode = generateJoinCode(6);
-    let codeExists = await this.prisma.event.findUnique({ where: { joinCode } });
-    while (codeExists) {
-      joinCode = generateJoinCode(6);
-      codeExists = await this.prisma.event.findUnique({ where: { joinCode } });
+    // Generate unique 10-char code with bounded retry and atomic creation
+    const maxRetries = 5;
+    let createdEvent: any = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { code, displayCode } = generateSecureCode(10);
+      const digest = computeDigest(code);
+
+      try {
+        createdEvent = await this.prisma.$transaction(async (tx) => {
+          const ev = await tx.event.create({
+            data: {
+              accountId: account!.id,
+              creatorId: userId,
+              name: data.name,
+              city: data.city,
+              startDate: new Date(data.startDate),
+              endDate: new Date(data.endDate),
+              joinCode: code,
+              guestAccessCode: displayCode,
+              driverAccessCode: null,
+              description: data.description || null,
+              bannerUrl: data.bannerUrl || null,
+              eventMembers: {
+                create: {
+                  userId,
+                  role: UserRole.EVENT_ORGANIZER,
+                },
+              },
+              eventCodes: {
+                create: {
+                  code,
+                  isActive: true,
+                },
+              },
+              eventAccessCodes: {
+                create: {
+                  accountId: account!.id,
+                  purpose: AccessCodePurpose.GUEST_EVENT,
+                  code,
+                  codeDigest: digest,
+                  displayCode,
+                  isActive: true,
+                  isSingleUse: false,
+                  createdBy: userId,
+                },
+              },
+            },
+            include: {
+              places: true,
+              functions: true,
+            },
+          });
+          return ev;
+        });
+        break;
+      } catch (err: any) {
+        if ((err.code === 'P2002' || err.message?.includes('E11000')) && attempt < maxRetries) {
+          continue;
+        }
+        throw err;
+      }
     }
 
-    const event = await this.prisma.event.create({
-      data: {
-        accountId: account.id,
-        creatorId: userId,
-        name: data.name,
-        city: data.city,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        joinCode,
-        description: data.description || null,
-        bannerUrl: data.bannerUrl || null,
-        eventMembers: {
-          create: {
-            userId,
-            role: UserRole.EVENT_ORGANIZER,
-          },
-        },
-        eventCodes: {
-          create: {
-            code: joinCode,
-            isActive: true,
-          },
-        },
-      },
-      include: {
-        places: true,
-        functions: true,
-      },
-    });
+    const event = createdEvent;
 
     // Populate initial places if supplied by wizard
     if (data.places && Array.isArray(data.places)) {

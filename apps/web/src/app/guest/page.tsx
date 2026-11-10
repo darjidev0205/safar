@@ -105,14 +105,31 @@ export default function GuestHomePage() {
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = joinCodeInput.trim().toUpperCase();
+    const cleanCode = joinCodeInput.replace(/[^A-Za-z0-9-]/g, '').trim().toUpperCase();
     if (!cleanCode) return;
 
     setJoining(true);
     setErrorMsg(null);
 
     try {
-      const res = await fetch(`/api/guest/dashboard?eventCode=${cleanCode}`, {
+      // First attempt to register membership if authenticated
+      if (profile?.id) {
+        try {
+          await fetch('/api/events/join/guest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': profile.id,
+              ...(profile.email ? { 'x-user-email': profile.email } : {}),
+            },
+            body: JSON.stringify({ code: cleanCode }),
+          });
+        } catch {
+          // Fall through to dashboard query
+        }
+      }
+
+      const res = await fetch(`/api/guest/dashboard?eventCode=${encodeURIComponent(cleanCode)}`, {
         headers: {
           ...(profile?.id ? { 'x-user-id': profile.id } : {}),
           ...(profile?.email ? { 'x-user-email': profile.email } : {}),
@@ -125,10 +142,10 @@ export default function GuestHomePage() {
         }
         setDashboardData(data);
       } else {
-        setErrorMsg('Wedding event code not found. Please verify with the host.');
+        setErrorMsg(data.error?.message || data.message || 'Wedding event code not found. Please verify with the host.');
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Could not verify code');
+      setErrorMsg(err?.message || 'Could not verify wedding event code. Please try again.');
     } finally {
       setJoining(false);
     }

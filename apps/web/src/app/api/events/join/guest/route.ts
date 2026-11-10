@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/db';
 import { getCallerUser } from '../../../../../lib/caller-auth';
-import { Role, EventStatus } from '@prisma/client';
+import { Role, EventStatus, AccessCodePurpose } from '@prisma/client';
+import { resolveAccessCode } from '../../../../../lib/access-code';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,37 +26,26 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const rawCode = (body.code || '').trim().toUpperCase();
+    const rawCode = body.code || '';
 
-    if (!rawCode) {
+    if (!rawCode || !rawCode.trim()) {
       return NextResponse.json(
         { success: false, error: { message: 'Guest access code is required.' } },
         { status: 400 }
       );
     }
 
-    // 1. Locate the master event by guestAccessCode (or legacy joinCode)
-    const event = await prisma.event.findFirst({
-      where: {
-        OR: [
-          { guestAccessCode: rawCode },
-          { joinCode: rawCode },
-        ],
-      },
-      include: {
-        functions: {
-          where: { status: { not: 'ARCHIVED' } },
-          orderBy: { startTime: 'asc' },
-        },
-      },
-    });
+    // 1. Locate the master event by centralized code registry (or legacy fallback)
+    const resolution = await resolveAccessCode(rawCode, AccessCodePurpose.GUEST_EVENT);
 
-    if (!event) {
+    if (!resolution.isValid || !resolution.event) {
       return NextResponse.json(
-        { success: false, error: { message: 'Invalid guest access code. Please verify the code from your host.' } },
+        { success: false, error: { message: resolution.error || 'Wedding event code not found. Please verify with the host.' } },
         { status: 404 }
       );
     }
+
+    const event = resolution.event;
 
     // 2. Verify Event is active
     if (event.status === EventStatus.ARCHIVED || event.status === EventStatus.COMPLETED) {
@@ -143,8 +133,8 @@ export async function POST(req: NextRequest) {
     });
 
     // 4. Map functions with attendance status for this guest
-    const functionsWithAssignment = event.functions.map((fn) => {
-      const att = result.attendances.find((a) => a.functionId === fn.id);
+    const functionsWithAssignment = (event.functions || []).map((fn: any) => {
+      const att = result.attendances.find((a: any) => a.functionId === fn.id);
       return {
         id: fn.id,
         name: fn.name,

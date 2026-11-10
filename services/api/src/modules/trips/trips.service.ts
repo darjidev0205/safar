@@ -14,7 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 export class TripsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async listTrips(eventId: string, options?: { functionId?: string }) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../../../lib/db';
 import { getAuthenticatedHost, verifyEventOwnership } from '../../../../../../lib/auth-server';
-import { generateSecureAccessCode, generateUniqueEventAccessCodes } from '../../../../../../lib/access-code';
+import { regenerateGuestAccessCode, createDriverInviteCodeRecord } from '../../../../../../lib/access-code';
+import { AccessCodePurpose } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,81 +20,39 @@ export async function POST(
     if (!event) return errorResponse!;
 
     const body = await req.json().catch(() => ({}));
-    const type = (body.type || 'BOTH').toUpperCase(); // 'DRIVER', 'GUEST', or 'BOTH'
+    const type = (body.type || 'GUEST').toUpperCase(); // 'GUEST', 'DRIVER', or 'BOTH'
 
-    const updateData: any = {};
-    let newDriverCode: string | null = null;
-    let newGuestCode: string | null = null;
+    let newGuestDisplayCode: string | null = null;
+    let newDriverDisplayCode: string | null = null;
 
-    if (type === 'BOTH' || type === 'ALL') {
-      const generated = await generateUniqueEventAccessCodes();
-      updateData.driverAccessCode = generated.driverAccessCode;
-      updateData.guestAccessCode = generated.guestAccessCode;
-      updateData.joinCode = generated.guestAccessCode;
-      newDriverCode = generated.driverAccessCode;
-      newGuestCode = generated.guestAccessCode;
-    } else if (type === 'DRIVER') {
-      let newCode = '';
-      for (let i = 0; i < 10; i++) {
-        const candidate = generateSecureAccessCode();
-        const existing = await prisma.event.findFirst({
-          where: {
-            OR: [
-              { driverAccessCode: candidate },
-              { guestAccessCode: candidate },
-              { joinCode: candidate },
-            ],
-          },
-        });
-        if (!existing) {
-          newCode = candidate;
-          break;
-        }
-      }
-      if (!newCode) newCode = generateSecureAccessCode();
-      updateData.driverAccessCode = newCode;
-      newDriverCode = newCode;
-    } else if (type === 'GUEST') {
-      let newCode = '';
-      for (let i = 0; i < 10; i++) {
-        const candidate = generateSecureAccessCode();
-        const existing = await prisma.event.findFirst({
-          where: {
-            OR: [
-              { driverAccessCode: candidate },
-              { guestAccessCode: candidate },
-              { joinCode: candidate },
-            ],
-          },
-        });
-        if (!existing) {
-          newCode = candidate;
-          break;
-        }
-      }
-      if (!newCode) newCode = generateSecureAccessCode();
-      updateData.guestAccessCode = newCode;
-      updateData.joinCode = newCode;
-      newGuestCode = newCode;
-    } else {
-      return NextResponse.json(
-        { success: false, error: { message: 'Code type must be DRIVER, GUEST, or BOTH.' } },
-        { status: 400 }
+    if (type === 'GUEST' || type === 'BOTH' || type === 'ALL') {
+      const regenerated = await regenerateGuestAccessCode(
+        event.id,
+        context.user.id,
+        context.account.id
       );
+      newGuestDisplayCode = regenerated.displayCode;
     }
 
-    const updatedEvent = await prisma.event.update({
-      where: { id: event.id },
-      data: updateData,
-    });
+    if (type === 'DRIVER' || type === 'BOTH' || type === 'ALL') {
+      const driverInvite = await prisma.$transaction(async (tx) => {
+        return await createDriverInviteCodeRecord(tx, {
+          accountId: context.account.id,
+          eventId: event.id,
+          creatorId: context.user.id,
+          recipientName: 'General Chauffeur Invite',
+        });
+      });
+      newDriverDisplayCode = driverInvite.displayCode;
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Event access codes regenerated successfully. Previous credentials have been invalidated.`,
+      message: 'Access credentials regenerated successfully. Previous active codes have been invalidated.',
       type,
-      newCode: newGuestCode || newDriverCode,
-      driverAccessCode: updatedEvent.driverAccessCode,
-      guestAccessCode: updatedEvent.guestAccessCode,
+      guestAccessCode: newGuestDisplayCode,
+      driverAccessCode: newDriverDisplayCode,
+      newCode: newGuestDisplayCode || newDriverDisplayCode,
     });
   } catch (error: any) {
     console.error('Error regenerating access code:', error);

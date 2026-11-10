@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
+import { resolveAccessCode } from '../../../../lib/access-code';
+import { AccessCodePurpose } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,15 +119,76 @@ export async function GET(req: NextRequest) {
     let eventRecord: any = null;
 
     if (eventCodeParam) {
-      eventRecord = await prisma.event.findUnique({
-        where: { joinCode: eventCodeParam },
-        include: {
-          functions: { orderBy: { startTime: 'asc' } },
-          subEvents: { orderBy: { startDate: 'asc' } },
-          places: true,
-          transportRequirements: true,
-        },
-      });
+      const resolution = await resolveAccessCode(eventCodeParam, AccessCodePurpose.GUEST_EVENT);
+      if (resolution.isValid && resolution.event) {
+        eventRecord = resolution.event;
+
+        // Auto-link authenticated guest to event if not already linked
+        if (user?.id && (!guestRecord || guestRecord.eventId !== eventRecord.id)) {
+          try {
+            if (!guestRecord) {
+              guestRecord = await prisma.guest.create({
+                data: {
+                  accountId: eventRecord.accountId,
+                  eventId: eventRecord.id,
+                  userId: user.id,
+                  fullName: user.fullName,
+                  email: user.email,
+                  phoneNumber: user.phoneNumber,
+                  status: 'CONFIRMED',
+                },
+                include: {
+                  family: {
+                    include: {
+                      guests: {
+                        select: { id: true, fullName: true, relation: true, status: true },
+                      },
+                    },
+                  },
+                  attendances: {
+                    include: { function: true },
+                  },
+                },
+              });
+            } else if (!guestRecord.eventId) {
+              guestRecord = await prisma.guest.update({
+                where: { id: guestRecord.id },
+                data: { eventId: eventRecord.id, userId: user.id },
+                include: {
+                  family: {
+                    include: {
+                      guests: {
+                        select: { id: true, fullName: true, relation: true, status: true },
+                      },
+                    },
+                  },
+                  attendances: {
+                    include: { function: true },
+                  },
+                },
+              });
+            }
+
+            // Also create EventMember if missing
+            await prisma.eventMember.upsert({
+              where: {
+                eventId_userId: {
+                  eventId: eventRecord.id,
+                  userId: user.id,
+                },
+              },
+              update: {},
+              create: {
+                eventId: eventRecord.id,
+                userId: user.id,
+                role: 'GUEST',
+              },
+            }).catch(() => {});
+          } catch {
+            // Ignore unique conflict
+          }
+        }
+      }
     }
 
     if (!eventRecord && guestRecord?.eventId) {

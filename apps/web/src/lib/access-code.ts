@@ -595,11 +595,14 @@ export async function redeemDriverInvite(
       });
     }
 
-    // Also update caller role to DRIVER if not already
-    await tx.user.update({
-      where: { id: caller.id },
-      data: { role: Role.DRIVER },
-    });
+    // Only upgrade caller role to DRIVER if they are currently GUEST or unassigned.
+    // Crucial: NEVER demote or overwrite an ACCOUNT_OWNER, EVENT_ORGANIZER or SUPER_ADMIN.
+    if (!caller.role || caller.role === Role.GUEST) {
+      await tx.user.update({
+        where: { id: caller.id },
+        data: { role: Role.DRIVER },
+      });
+    }
 
     return {
       success: true,

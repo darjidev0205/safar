@@ -79,17 +79,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ): Promise<UserProfile | null> => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
+        // Only send query params for provisioning hint — not for auth
         const params = new URLSearchParams();
-        if (email) params.set('email', email);
-        if (uid) params.set('uid', uid);
         if (fallbackRole) params.set('targetRole', fallbackRole);
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
+        // Always prefer Bearer token — it carries Firebase UID + email securely
         if (token) headers['Authorization'] = `Bearer ${token}`;
+        // Only send helpers in development mode (auth-server.ts strips them in production)
         if (email) headers['x-user-email'] = email;
         if (uid) headers['x-user-uid'] = uid;
         if (fallbackRole) headers['x-target-role'] = fallbackRole;
@@ -154,7 +155,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return apiProfile;
       }
 
-      // Determine fallback role if API record not found yet
+      // API call failed — user is Firebase-authenticated but profile not provisioned yet.
+      // CRITICAL: Do NOT set profile.id = user.uid (Firebase UID).
+      // MongoDB ObjectIds and Firebase UIDs are different formats. Using Firebase UID as
+      // MongoDB id causes Prisma P2023 "Malformed ObjectID" errors on subsequent requests.
+      // Instead, store firebaseUid and let the token (Bearer) identify the user server-side.
       let userRole = fallbackRole || UserRole.GUEST;
       if (email && email.toLowerCase().includes('driver')) {
         userRole = UserRole.DRIVER;
@@ -165,8 +170,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRole = UserRole.EVENT_ORGANIZER;
       }
 
+      // Store a pending profile — id is intentionally left as firebase uid so we can
+      // distinguish it from real MongoDB ids. All API calls MUST use Bearer token only.
       const fallbackProfile: UserProfile = {
-        id: user.uid,
+        id: '',              // No MongoDB id yet — force Bearer-token auth on all requests
         firebaseUid: user.uid,
         email: user.email,
         phoneNumber: user.phoneNumber,

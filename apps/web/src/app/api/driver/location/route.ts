@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
 import { firestore, doc, setDoc } from '../../../../lib/firebase';
+import { getCallerUser } from '../../../../lib/caller-auth';
 import {
   defaultGpsValidator,
   accumulateDistance,
@@ -12,51 +13,9 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function getCallerUser(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const emailHeader = req.headers.get('x-user-email');
-  const uidHeader = req.headers.get('x-user-uid');
-  const idHeader = req.headers.get('x-user-id');
-
-  if (idHeader) {
-    const user = await prisma.user.findUnique({ where: { id: idHeader } });
-    if (user) return user;
-  }
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split('Bearer ')[1].trim();
-    if (token.includes('@')) {
-      const user = await prisma.user.findFirst({
-        where: { email: { equals: token.toLowerCase(), mode: 'insensitive' } },
-      });
-      if (user) return user;
-    }
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ firebaseUid: token }, { id: token }] },
-    });
-    if (user) return user;
-  }
-
-  if (emailHeader) {
-    const user = await prisma.user.findFirst({
-      where: { email: { equals: emailHeader.toLowerCase(), mode: 'insensitive' } },
-    });
-    if (user) return user;
-  }
-
-  if (uidHeader) {
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ firebaseUid: uidHeader }, { id: uidHeader }] },
-    });
-    if (user) return user;
-  }
-
-  return null;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const caller = await getCallerUser(req);
+    const { user: caller } = await getCallerUser(req);
     const body = await req.json();
 
     const {

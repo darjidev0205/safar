@@ -26,6 +26,10 @@
     "db:migrate": "prisma db push",
     "db:push": "prisma db push",
     "db:seed": "node infrastructure/seed.js",
+    "db:inventory": "node scripts/db-inventory.js",
+    "db:backup": "node scripts/backup-db.js",
+    "db:reset:dev": "node scripts/db-reset-dev.js",
+    "db:seed:test": "node scripts/db-seed-test.js",
     "postinstall": "prisma generate"
   },
   "devDependencies": {

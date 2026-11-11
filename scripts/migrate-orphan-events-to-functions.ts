@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 interface MigrationStats {
   accountsProcessed: number;
-  parentEventsConsolidated: number;
+  parentEventsCreated: number;
   functionsCreated: number;
   eventCodesCreated: number;
   guestsRepointed: number;
@@ -32,15 +32,9 @@ function isCeremonyName(name: string): boolean {
   return CEREMONY_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-function cleanOrgName(raw: string): string {
-  return raw
-    .replace(/ Organization$/i, '')
-    .replace(/'s Events$/i, '')
-    .trim();
-}
-
 async function runMigration() {
   const isCommit = process.argv.includes('--commit');
+  const isDryRun = !isCommit;
 
   console.log(`=======================================================`);
   console.log(`  SAFAR DOMAIN CANONICALIZATION MIGRATION (DOMAIN-01)  `);
@@ -49,7 +43,7 @@ async function runMigration() {
 
   const stats: MigrationStats = {
     accountsProcessed: 0,
-    parentEventsConsolidated: 0,
+    parentEventsCreated: 0,
     functionsCreated: 0,
     eventCodesCreated: 0,
     guestsRepointed: 0,
@@ -74,90 +68,97 @@ async function runMigration() {
   });
 
   for (const account of accounts) {
-    const activeEvents = account.events.filter(
-      (e) => e.status !== EventStatus.ARCHIVED && !e.parentEventId
-    );
+    const activeEvents = account.events.filter((e) => e.status !== EventStatus.ARCHIVED && !e.parentEventId);
     if (activeEvents.length === 0) continue;
 
     stats.accountsProcessed++;
     console.log(`\nAccount: "${account.name}" (ID: ${account.id}) has ${activeEvents.length} active top-level event(s):`);
 
+    // Check if this account has multiple ceremony-level events that should be consolidated
     const ceremonyEvents = activeEvents.filter((e) => isCeremonyName(e.name));
-    const parentCandidate = activeEvents.find(
-      (e) => !isCeremonyName(e.name) || e.functions.length > 0
-    );
+    const parentCandidate = activeEvents.find((e) => !isCeremonyName(e.name) || e.functions.length > 0);
 
     if (activeEvents.length > 1 && ceremonyEvents.length >= 2) {
-      console.log(` -> Found ${ceremonyEvents.length} orphaned ceremony events needing consolidation.`);
+      console.log(` -> Found ${ceremonyEvents.length} orphaned ceremony events needing consolidation into 1 Master Wedding Event.`);
 
-      // Designate master event: preferred candidate or first ceremony
-      const masterEvent = parentCandidate || activeEvents[0];
-      const otherCeremonies = activeEvents.filter((e) => e.id !== masterEvent.id);
+      let masterEvent = parentCandidate;
+      let createdMasterInPlan = false;
 
-      const minDate = new Date(Math.min(...activeEvents.map((e) => e.startDate.getTime())));
-      const maxDate = new Date(Math.max(...activeEvents.map((e) => e.endDate.getTime())));
-      const cleanName = `${cleanOrgName(account.name)} Wedding Celebration`;
+      if (!masterEvent) {
+        // Create canonical master wedding event
+        const primaryCeremony = activeEvents[0];
+        const minDate = new Date(Math.min(...activeEvents.map((e) => e.startDate.getTime())));
+        const maxDate = new Date(Math.max(...activeEvents.map((e) => e.endDate.getTime())));
 
-      console.log(` -> Master Event: "${masterEvent.name}" (ID: ${masterEvent.id}, Code: ${masterEvent.joinCode})`);
-      console.log(`    Consolidating as canonical: "${cleanName}"`);
+        console.log(` -> [Plan] Create Canonical Parent Wedding Event for account "${account.name}"`);
+        console.log(`    Dates: ${minDate.toISOString()} to ${maxDate.toISOString()}`);
+        console.log(`    City: ${primaryCeremony.city}`);
 
-      if (isCommit) {
-        // 1. If masterEvent was originally named as a single ceremony, rename to Master Wedding
-        const originalMasterName = masterEvent.name;
-        if (isCeremonyName(masterEvent.name) && !masterEvent.name.toLowerCase().includes('wedding')) {
-          await prisma.event.update({
-            where: { id: masterEvent.id },
+        if (isCommit) {
+          masterEvent = await prisma.event.create({
             data: {
-              name: cleanName,
+              accountId: account.id,
+              creatorId: primaryCeremony.creatorId,
+              name: `${account.name.replace(/ Organization$/i, '')} Wedding Celebration`,
+              city: primaryCeremony.city,
               startDate: minDate,
               endDate: maxDate,
+              joinCode: primaryCeremony.joinCode,
+              description: 'Canonical master wedding celebration consolidating all ceremonies.',
+              status: EventStatus.ACTIVE,
+            },
+            include: {
+              places: true,
+              functions: true,
+              eventCodes: true,
+              guests: true,
+              trips: true,
+              bookings: true,
             },
           });
+          createdMasterInPlan = true;
+          stats.parentEventsCreated++;
+          console.log(`    Created Master Event ID: ${masterEvent.id} with primary code: ${masterEvent.joinCode}`);
+        } else {
+          stats.parentEventsCreated++;
+        }
+      } else {
+        console.log(` -> Using existing master wedding event "${masterEvent.name}" (ID: ${masterEvent.id})`);
+      }
+
+      // Now migrate each ceremony event
+      for (const ceremony of activeEvents) {
+        // If this ceremony is the newly created or selected masterEvent, don't archive itself unless it's a pure ceremony
+        if (masterEvent && ceremony.id === masterEvent.id) {
+          // If master event has no functions yet, ensure it has a Function representing its main ceremony
+          if (ceremony.functions.length === 0) {
+            console.log(` -> [Plan] Create canonical Function for master event: "${ceremony.name}"`);
+            if (isCommit) {
+              await prisma.function.create({
+                data: {
+                  eventId: masterEvent.id,
+                  name: ceremony.name,
+                  date: ceremony.startDate,
+                  startTime: ceremony.startDate,
+                  endTime: ceremony.endDate,
+                  venueName: ceremony.venueName || ceremony.places[0]?.name || null,
+                  venueAddress: ceremony.venueAddress || ceremony.places[0]?.address || null,
+                  status: 'ACTIVE',
+                },
+              });
+              stats.functionsCreated++;
+            } else {
+              stats.functionsCreated++;
+            }
+          }
+          continue;
         }
 
-        // 2. Ensure masterEvent has a Function for its original ceremony
-        const masterFnExists = await prisma.function.findFirst({
-          where: { eventId: masterEvent.id },
-        });
-        if (!masterFnExists) {
-          await prisma.function.create({
-            data: {
-              eventId: masterEvent.id,
-              name: originalMasterName,
-              date: masterEvent.startDate,
-              startTime: masterEvent.startDate,
-              endTime: masterEvent.endDate,
-              venueName: masterEvent.venueName || masterEvent.places[0]?.name || null,
-              venueAddress: masterEvent.venueAddress || masterEvent.places[0]?.address || null,
-              status: 'ACTIVE',
-            },
-          });
-          stats.functionsCreated++;
-          console.log(`    Created Function "${originalMasterName}" under master event.`);
-        }
+        console.log(`   -> [Plan] Migrate ceremony "${ceremony.name}" (Code: ${ceremony.joinCode}, ID: ${ceremony.id})`);
 
-        stats.parentEventsConsolidated++;
-
-        // 3. Migrate each child ceremony
-        for (const ceremony of otherCeremonies) {
-          const originalCode = ceremony.joinCode;
-          console.log(`    Migrating ceremony "${ceremony.name}" (Code: ${originalCode})...`);
-
-          // Free original joinCode by appending timestamp to archived record
-          const archivedCode = `OLD_${originalCode}_${Date.now().toString().slice(-4)}`;
-          await prisma.event.update({
-            where: { id: ceremony.id },
-            data: {
-              joinCode: archivedCode,
-              status: EventStatus.ARCHIVED,
-              parentEventId: masterEvent.id,
-              description: `[CONSOLIDATED into canonical event "${cleanName}" (${masterEvent.id})]`,
-            },
-          });
-          stats.eventsArchived++;
-
-          // Create Function under master event
-          const createdFn = await prisma.function.create({
+        if (isCommit && masterEvent) {
+          // 1. Create Function under master event
+          const fn = await prisma.function.create({
             data: {
               eventId: masterEvent.id,
               name: ceremony.name,
@@ -171,46 +172,46 @@ async function runMigration() {
           });
           stats.functionsCreated++;
 
-          // Map legacy ceremony code in eventCodes of master event
+          // 2. Create EventCode so old ceremony joinCode resolves to masterEvent
           const existingCode = await prisma.eventCode.findFirst({
-            where: { code: originalCode },
+            where: { eventId: masterEvent.id, code: ceremony.joinCode },
           });
-          if (!existingCode && originalCode !== masterEvent.joinCode) {
+          if (!existingCode && ceremony.joinCode !== masterEvent.joinCode) {
             await prisma.eventCode.create({
               data: {
                 eventId: masterEvent.id,
-                code: originalCode,
+                code: ceremony.joinCode,
                 isActive: true,
               },
             });
             stats.eventCodesCreated++;
-            console.log(`    Mapped legacy code "${originalCode}" -> Master Event.`);
           }
 
-          // Repoint guests
+          // 3. Repoint Guests non-destructively
           for (const guest of ceremony.guests) {
             await prisma.guest.update({
               where: { id: guest.id },
               data: { eventId: masterEvent.id },
             });
+            // Also link attendance to the function
             await prisma.guestFunctionAttendance.upsert({
-              where: { guestId_functionId: { guestId: guest.id, functionId: createdFn.id } },
-              create: { guestId: guest.id, functionId: createdFn.id, isAttending: true, status: 'CONFIRMED' },
+              where: { guestId_functionId: { guestId: guest.id, functionId: fn.id } },
+              create: { guestId: guest.id, functionId: fn.id, isAttending: true, status: 'CONFIRMED' },
               update: { isAttending: true },
             });
             stats.guestsRepointed++;
           }
 
-          // Repoint trips
+          // 4. Repoint Trips non-destructively
           for (const trip of ceremony.trips) {
             await prisma.trip.update({
               where: { id: trip.id },
-              data: { eventId: masterEvent.id, functionId: createdFn.id },
+              data: { eventId: masterEvent.id, functionId: fn.id },
             });
             stats.tripsRepointed++;
           }
 
-          // Repoint bookings
+          // 5. Repoint Bookings non-destructively
           for (const booking of ceremony.bookings) {
             await prisma.booking.update({
               where: { id: booking.id },
@@ -218,20 +219,28 @@ async function runMigration() {
             });
             stats.bookingsRepointed++;
           }
-        }
-      } else {
-        stats.parentEventsConsolidated++;
-        stats.functionsCreated += otherCeremonies.length + (masterEvent.functions.length === 0 ? 1 : 0);
-        stats.eventCodesCreated += otherCeremonies.length;
-        stats.eventsArchived += otherCeremonies.length;
-        for (const c of otherCeremonies) {
-          stats.guestsRepointed += c.guests.length;
-          stats.tripsRepointed += c.trips.length;
-          stats.bookingsRepointed += c.bookings.length;
+
+          // 6. Non-destructive archival with parent pointer
+          await prisma.event.update({
+            where: { id: ceremony.id },
+            data: {
+              status: EventStatus.ARCHIVED,
+              parentEventId: masterEvent.id,
+              description: `[CONSOLIDATED into canonical event "${masterEvent.name}" (${masterEvent.id})]`,
+            },
+          });
+          stats.eventsArchived++;
+        } else {
+          stats.functionsCreated++;
+          stats.eventCodesCreated++;
+          stats.guestsRepointed += ceremony.guests.length;
+          stats.tripsRepointed += ceremony.trips.length;
+          stats.bookingsRepointed += ceremony.bookings.length;
+          stats.eventsArchived++;
         }
       }
     } else {
-      // Single event accounts
+      // Single event in account. Ensure it has at least one Function record so domain is canonical
       for (const ev of activeEvents) {
         if (ev.functions.length === 0) {
           console.log(` -> Event "${ev.name}" (ID: ${ev.id}) has 0 functions. Creating canonical Function.`);
@@ -261,7 +270,7 @@ async function runMigration() {
   console.log(`  MIGRATION SUMMARY (${isCommit ? 'COMMITTED' : 'DRY RUN'})`);
   console.log(`=======================================================`);
   console.log(` Accounts Processed:         ${stats.accountsProcessed}`);
-  console.log(` Master Events Consolidated: ${stats.parentEventsConsolidated}`);
+  console.log(` Parent Events Created:      ${stats.parentEventsCreated}`);
   console.log(` Functions Created:          ${stats.functionsCreated}`);
   console.log(` Legacy Event Codes Mapped:  ${stats.eventCodesCreated}`);
   console.log(` Guests Repointed:           ${stats.guestsRepointed}`);

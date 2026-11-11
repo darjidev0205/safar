@@ -521,14 +521,15 @@ async function runAllTests() {
   const testRevoked = await resolveAccessCode(regenerated.displayCode, AccessCodePurpose.GUEST_EVENT);
 
   // Create an already-expired code
+  const expiredCode = `EXP${runId}X`;
   const expiredRecord = await prisma.eventAccessCode.create({
     data: {
       accountId: accountA.id,
       eventId: weddingA.id,
       purpose: AccessCodePurpose.GUEST_EVENT,
-      code: 'EXPIRED123',
-      codeDigest: computeCodeDigest('EXPIRED123'),
-      displayCode: 'EXPIRED-123',
+      code: expiredCode,
+      codeDigest: computeCodeDigest(expiredCode),
+      displayCode: `EXP-${runId}X`,
       isActive: true,
       expiresAt: new Date(Date.now() - 3600000), // 1 hour ago
       createdBy: hostAUser.id,

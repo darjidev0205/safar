@@ -31,7 +31,7 @@ import {
 import { useAuth } from '../../context/auth-context';
 
 export default function GuestHomePage() {
-  const { profile } = useAuth();
+  const { profile, firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -73,13 +73,30 @@ export default function GuestHomePage() {
         }
       }
 
-      const res = await fetch(`/api/guest/dashboard${codeParam}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
-          ...(profile?.email ? { 'x-user-email': profile.email } : {}),
-        },
-      });
+      // Always use the Firebase Bearer token as the primary auth mechanism.
+      // x-user-id / x-user-email are supplemental hints only.
+      let token = '';
+      try {
+        if (firebaseUser) {
+          token = await firebaseUser.getIdToken();
+        } else if (typeof window !== 'undefined') {
+          token = localStorage.getItem('safar_auth_token') || '';
+        }
+      } catch (e) {
+        token = typeof window !== 'undefined' ? localStorage.getItem('safar_auth_token') || '' : '';
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      // Only send x-user-id when it's a valid MongoDB ObjectId (24 hex chars)
+      if (profile?.id && /^[0-9a-fA-F]{24}$/.test(profile.id)) {
+        headers['x-user-id'] = profile.id;
+      }
+      if (profile?.email) headers['x-user-email'] = profile.email;
+
+      const res = await fetch(`/api/guest/dashboard${codeParam}`, { headers });
 
       const json = await res.json();
       if (json.success) {
@@ -111,31 +128,72 @@ export default function GuestHomePage() {
     setJoining(true);
     setErrorMsg(null);
 
+    // Get a fresh Firebase Bearer token for secure server-side identity verification
+    let token = '';
     try {
-      // First attempt to register membership if authenticated
-      if (profile?.id) {
-        try {
-          await fetch('/api/events/join/guest', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-user-id': profile.id,
-              ...(profile.email ? { 'x-user-email': profile.email } : {}),
-            },
-            body: JSON.stringify({ code: cleanCode }),
-          });
-        } catch {
-          // Fall through to dashboard query
+      if (firebaseUser) {
+        token = await firebaseUser.getIdToken();
+        // Refresh stored token
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safar_auth_token', token);
+        }
+      } else if (typeof window !== 'undefined') {
+        token = localStorage.getItem('safar_auth_token') || '';
+      }
+    } catch (e) {
+      token = typeof window !== 'undefined' ? localStorage.getItem('safar_auth_token') || '' : '';
+    }
+
+    if (!token) {
+      setErrorMsg('Your session has expired. Please sign in again to join the event.');
+      setJoining(false);
+      return;
+    }
+
+    const authHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+    // Only append MongoDB ObjectId when it looks valid (never use Firebase UID as x-user-id)
+    if (profile?.id && /^[0-9a-fA-F]{24}$/.test(profile.id)) {
+      authHeaders['x-user-id'] = profile.id;
+    }
+    if (profile?.email) authHeaders['x-user-email'] = profile.email;
+
+    try {
+      // 1. Register membership in the database via authenticated POST
+      const joinRes = await fetch('/api/events/join/guest', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ code: cleanCode }),
+      });
+      const joinData = await joinRes.json();
+
+      if (!joinRes.ok || !joinData.success) {
+        // Distinguish auth errors from code errors
+        if (joinRes.status === 401) {
+          setErrorMsg('Your session has expired. Please sign in again to join the event.');
+        } else if (joinRes.status === 403) {
+          setErrorMsg(joinData.error?.message || 'You are not authorized to join this event.');
+        } else {
+          setErrorMsg(joinData.error?.message || 'Wedding event code not found. Please verify with the host.');
+        }
+        setJoining(false);
+        return;
+      }
+
+      // 2. Store event details and reload dashboard
+      if (joinData.event) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('safar_guest_event', JSON.stringify(joinData.event));
         }
       }
 
-      const res = await fetch(`/api/guest/dashboard?eventCode=${encodeURIComponent(cleanCode)}`, {
-        headers: {
-          ...(profile?.id ? { 'x-user-id': profile.id } : {}),
-          ...(profile?.email ? { 'x-user-email': profile.email } : {}),
-        },
+      // 3. Reload the dashboard with this event code
+      const dashRes = await fetch(`/api/guest/dashboard?eventCode=${encodeURIComponent(cleanCode)}`, {
+        headers: authHeaders,
       });
-      const data = await res.json();
+      const data = await dashRes.json();
       if (data.success && data.hasEvent) {
         if (typeof window !== 'undefined') {
           localStorage.setItem('safar_guest_event', JSON.stringify(data.event));

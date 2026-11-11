@@ -2,60 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
 import { resolveAccessCode } from '../../../../lib/access-code';
 import { AccessCodePurpose } from '@prisma/client';
+import { getCallerUser } from '../../../../lib/caller-auth';
 
 export const dynamic = 'force-dynamic';
-
-async function getCallerUser(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const emailHeader = req.headers.get('x-user-email');
-  const uidHeader = req.headers.get('x-user-uid');
-  const idHeader = req.headers.get('x-user-id');
-  const queryUserId = req.nextUrl?.searchParams?.get('userId');
-
-  if (idHeader) {
-    const user = await prisma.user.findUnique({ where: { id: idHeader } });
-    if (user) return user;
-  }
-
-  if (queryUserId) {
-    const user = await prisma.user.findUnique({ where: { id: queryUserId } });
-    if (user) return user;
-  }
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split('Bearer ')[1].trim();
-    if (token.includes('@')) {
-      const user = await prisma.user.findFirst({
-        where: { email: { equals: token.toLowerCase(), mode: 'insensitive' } },
-      });
-      if (user) return user;
-    }
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ firebaseUid: token }, { id: token }],
-      },
-    });
-    if (user) return user;
-  }
-
-  if (emailHeader) {
-    const user = await prisma.user.findFirst({
-      where: { email: { equals: emailHeader.toLowerCase(), mode: 'insensitive' } },
-    });
-    if (user) return user;
-  }
-
-  if (uidHeader) {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ firebaseUid: uidHeader }, { id: uidHeader }],
-      },
-    });
-    if (user) return user;
-  }
-
-  return null;
-}
 
 // Distance calculation between coordinates (Haversine formula in KM)
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -74,10 +23,10 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCallerUser(req);
+    const { user, errorResponse } = await getCallerUser(req);
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Authentication required' } },
+      return errorResponse || NextResponse.json(
+        { success: false, error: { message: 'Authentication required. Please sign in.' } },
         { status: 401 }
       );
     }

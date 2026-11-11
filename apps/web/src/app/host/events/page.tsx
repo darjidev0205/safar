@@ -20,6 +20,7 @@ import {
 import { EventWizardModal } from '../../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../../components/host/edit-event-modal';
 import { EventAccessCodesModal } from '../../../components/host/event-access-codes-modal';
+import { AddFunctionModal } from '../../../components/host/add-function-modal';
 import { AccessRequestsPanel } from '../../../components/host/access-requests-panel';
 import { useAuth } from '../../../context/auth-context';
 import { StarFlourish, MarigoldFlower } from '../../../components/ui/botanical-ornaments';
@@ -36,6 +37,8 @@ export default function HostEventsPage() {
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isAddFunctionOpen, setIsAddFunctionOpen] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [accessCodesEvent, setAccessCodesEvent] = useState<any | null>(null);
@@ -142,9 +145,42 @@ export default function HostEventsPage() {
     }
   };
 
-  const filteredEvents = events.filter((ev) => {
+  const ceremonies = events.flatMap((ev) => {
+    if (ev.functions && ev.functions.length > 0) {
+      return ev.functions.map((fn: any) => ({
+        id: fn.id,
+        name: fn.name,
+        eventType: fn.type || 'CUSTOM',
+        joinCode: ev.joinCode,
+        venueName: fn.venueName || ev.venueName,
+        city: ev.city,
+        startDate: fn.date || fn.startTime || ev.startDate,
+        startTime: fn.startTime ? new Date(fn.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '18:00',
+        endTime: fn.endTime ? new Date(fn.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '23:00',
+        guestCount: ev._count?.guests || ev.guestCount || 0,
+        transportRequirements: ev.transportRequirements,
+        parentEventId: ev.id,
+      }));
+    }
+    return [{
+      id: ev.id,
+      name: ev.name,
+      eventType: ev.eventType || 'CUSTOM',
+      joinCode: ev.joinCode,
+      venueName: ev.venueName,
+      city: ev.city,
+      startDate: ev.startDate,
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+      guestCount: ev._count?.guests || ev.guestCount || 0,
+      transportRequirements: ev.transportRequirements,
+      parentEventId: ev.id,
+    }];
+  });
+
+  const filteredEvents = ceremonies.filter((c) => {
     if (filterType === 'ALL') return true;
-    return (ev.eventType || '').toUpperCase() === filterType.toUpperCase();
+    return (c.eventType || '').toUpperCase() === filterType.toUpperCase();
   });
 
   const getFunctionBadgeVariant = (type: string) => {
@@ -182,13 +218,28 @@ export default function HostEventsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsWizardOpen(true)}
-          className="px-6 py-3 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-warm-50 text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 self-start sm:self-auto transition-all font-sans"
-        >
-          <CalendarPlus className="w-4 h-4 text-gold-400" />
-          <span>Create Function</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto font-sans">
+          {events.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedEventId(events[0]?.id);
+                setIsAddFunctionOpen(true);
+              }}
+              className="px-5 py-2.5 rounded-full bg-terracotta-600 hover:bg-terracotta-700 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 transition-all font-sans"
+            >
+              <CalendarPlus className="w-4 h-4 text-warm-100" />
+              <span>Add Ceremony</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsWizardOpen(true)}
+            className="px-5 py-2.5 rounded-full bg-charcoal-900 hover:bg-charcoal-800 text-warm-50 text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm flex items-center gap-2 transition-all font-sans"
+          >
+            <Plus className="w-4 h-4 text-gold-400" />
+            <span>New Master Wedding</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Tab Switcher: Ceremonies vs Access Requests */}
@@ -339,6 +390,20 @@ export default function HostEventsPage() {
           fetchEvents();
         }}
       />
+
+      {/* Add Ceremony Modal */}
+      {selectedEventId && (
+        <AddFunctionModal
+          isOpen={isAddFunctionOpen}
+          eventId={selectedEventId}
+          eventName={events.find((e) => e.id === selectedEventId)?.name || 'Wedding Celebration'}
+          onClose={() => setIsAddFunctionOpen(false)}
+          onFunctionAdded={() => {
+            showToast('Ceremony added successfully!');
+            fetchEvents();
+          }}
+        />
+      )}
 
       {/* Edit Event Modal */}
       {editingEvent && (

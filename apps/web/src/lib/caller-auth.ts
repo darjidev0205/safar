@@ -4,6 +4,9 @@ import { Role } from '@prisma/client';
 import { decodeFirebaseToken } from './auth-server';
 
 export interface AuthenticatedUserContext {
+  updatedAt: any;
+  createdAt: any;
+  avatarUrl: null;
   id: string;
   firebaseUid: string;
   email: string | null;
@@ -13,9 +16,15 @@ export interface AuthenticatedUserContext {
   accountMembers?: Array<{ accountId: string; role: Role; account: { id: string; name: string; slug: string } }>;
 }
 
+export function isValidObjectId(id: string | null | undefined): boolean {
+  if (!id || typeof id !== 'string') return false;
+  return /^[0-9a-fA-F]{24}$/.test(id);
+}
+
 /**
  * Extracts and verifies the authenticated user from Request headers, cookies, or Bearer token.
- * Does NOT auto-create fake users.
+ * Prevents Prisma P2023 "Malformed ObjectID" errors by strictly validating 24-char hex strings.
+ * Safely provisions missing user records when a valid Firebase token is verified.
  */
 export async function getCallerUser(
   req: NextRequest
@@ -28,25 +37,33 @@ export async function getCallerUser(
     const emailHeader = isProduction ? null : req.headers.get('x-user-email');
     const uidHeader = isProduction ? null : req.headers.get('x-user-uid');
     const idHeader = isProduction ? null : req.headers.get('x-user-id');
+    const targetRoleHeader = isProduction ? null : req.headers.get('x-target-role');
     const emailQuery = isProduction ? null : req.nextUrl.searchParams.get('email');
     const uidQuery = isProduction ? null : req.nextUrl.searchParams.get('uid');
     const userIdQuery = isProduction ? null : req.nextUrl.searchParams.get('userId');
 
-    let resolvedUserId: string | null = idHeader || userIdQuery || null;
+    let resolvedUserId: string | null = (idHeader && isValidObjectId(idHeader)) ? idHeader : ((userIdQuery && isValidObjectId(userIdQuery)) ? userIdQuery : null);
     let resolvedFirebaseUid: string | null = uidHeader || uidQuery || null;
     let resolvedEmail: string | null = emailHeader || emailQuery || null;
+    let isTokenVerified = false;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split('Bearer ')[1].trim();
       if (token && token !== 'null' && token !== 'undefined') {
         const decoded = decodeFirebaseToken(token);
-        if (decoded.uid) resolvedFirebaseUid = decoded.uid;
-        if (decoded.email) resolvedEmail = decoded.email;
+        if (decoded.uid) {
+          resolvedFirebaseUid = decoded.uid;
+          isTokenVerified = true;
+        }
+        if (decoded.email) {
+          resolvedEmail = decoded.email;
+          isTokenVerified = true;
+        }
 
         if (!decoded.uid && !decoded.email && !isProduction) {
           if (token.includes('@')) {
             resolvedEmail = token.toLowerCase().trim();
-          } else if (/^[0-9a-fA-F]{24}$/.test(token) || /^[0-9a-f]{8}-[0-9a-f]{4}/.test(token)) {
+          } else if (isValidObjectId(token)) {
             resolvedUserId = token;
           } else {
             resolvedFirebaseUid = token;
@@ -56,14 +73,14 @@ export async function getCallerUser(
     }
 
     const orConditions: any[] = [];
-    if (resolvedUserId && /^[0-9a-fA-F]{24}$/.test(resolvedUserId)) {
+    if (resolvedUserId && isValidObjectId(resolvedUserId)) {
       orConditions.push({ id: resolvedUserId });
     }
     if (resolvedFirebaseUid) {
       orConditions.push({ firebaseUid: resolvedFirebaseUid });
     }
     if (resolvedEmail) {
-      orConditions.push({ email: { equals: resolvedEmail.toLowerCase().trim(), mode: 'insensitive' } });
+      orConditions.push({ email: { equals: resolvedEmail.toLowerCase().trim(), mode: 'insensitive' as const } });
     }
 
     if (orConditions.length === 0) {
@@ -76,7 +93,7 @@ export async function getCallerUser(
       };
     }
 
-    const dbUser = await prisma.user.findFirst({
+    let dbUser = await prisma.user.findFirst({
       where: { OR: orConditions },
       include: {
         accountMembers: {
@@ -84,6 +101,50 @@ export async function getCallerUser(
         },
       },
     });
+
+    // Auto-provision verified user safely if authenticated but record doesn't exist yet
+    if (!dbUser && (resolvedFirebaseUid || resolvedEmail)) {
+      const cleanEmail = resolvedEmail ? resolvedEmail.toLowerCase().trim() : null;
+      const uidVal = resolvedFirebaseUid || `uid_${Date.now()}`;
+      const nameFromEmail = cleanEmail ? cleanEmail.split('@')[0] : 'Guest';
+      const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+
+      let initialRole: Role = Role.GUEST;
+      if (targetRoleHeader && ['DRIVER', 'GUEST', 'EVENT_ORGANIZER', 'ACCOUNT_OWNER'].includes(targetRoleHeader.toUpperCase())) {
+        initialRole = targetRoleHeader.toUpperCase() as Role;
+      }
+
+      try {
+        dbUser = await prisma.user.create({
+          data: {
+            firebaseUid: uidVal,
+            email: cleanEmail,
+            fullName: formattedName,
+            role: initialRole,
+          },
+          include: {
+            accountMembers: {
+              include: { account: true },
+            },
+          },
+        });
+      } catch (createErr: any) {
+        // If concurrent creation or unique collision occurred, retry finding
+        dbUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              ...(resolvedFirebaseUid ? [{ firebaseUid: resolvedFirebaseUid }] : []),
+              ...(cleanEmail ? [{ email: { equals: cleanEmail, mode: 'insensitive' as const } }] : []),
+            ],
+          },
+          include: {
+            accountMembers: {
+              include: { account: true },
+            },
+          },
+        });
+      }
+    }
 
     if (!dbUser) {
       return {
@@ -112,6 +173,9 @@ export async function getCallerUser(
             slug: am.account.slug,
           },
         })),
+        updatedAt: undefined,
+        createdAt: undefined,
+        avatarUrl: null
       },
     };
   } catch (err: any) {

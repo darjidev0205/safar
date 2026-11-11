@@ -46,7 +46,7 @@ interface DriverEventItem {
 }
 
 export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (eventId: string) => void }) {
-  const { profile } = useAuth();
+  const { profile, firebaseUser } = useAuth();
   const [driverEvents, setDriverEvents] = useState<DriverEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -62,19 +62,28 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
   const fetchMyEvents = useCallback(async () => {
     try {
       setLoading(true);
-      const token =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
-          : '';
+      let token = '';
+      try {
+        if (firebaseUser) {
+          token = await firebaseUser.getIdToken();
+        } else if (typeof window !== 'undefined') {
+          token = localStorage.getItem('safar_auth_token') || '';
+        }
+      } catch {
+        token = typeof window !== 'undefined' ? localStorage.getItem('safar_auth_token') || '' : '';
+      }
 
-      const res = await fetch('/api/driver/my-events', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-user-id': profile?.id || '',
-          'x-user-email': profile?.email || '',
-          'x-user-uid': profile?.firebaseUid || '',
-        },
-      });
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (profile?.id && /^[0-9a-fA-F]{24}$/.test(profile.id)) {
+        headers['x-user-id'] = profile.id;
+      }
+      if (profile?.email) headers['x-user-email'] = profile.email;
+      if (profile?.firebaseUid) headers['x-user-uid'] = profile.firebaseUid;
+
+      const res = await fetch('/api/driver/my-events', { headers });
 
       if (res.ok) {
         const data = await res.json();
@@ -87,7 +96,7 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, firebaseUser]);
 
   useEffect(() => {
     fetchMyEvents();
@@ -147,21 +156,42 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
     try {
       setSubmitting(true);
       setSubmitError(null);
-      const token =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('safar_auth_token') || profile?.email || ''
-          : '';
+
+      // Get fresh Firebase ID token
+      let token = '';
+      try {
+        if (firebaseUser) {
+          token = await firebaseUser.getIdToken();
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('safar_auth_token', token);
+          }
+        } else if (typeof window !== 'undefined') {
+          token = localStorage.getItem('safar_auth_token') || '';
+        }
+      } catch {
+        token = typeof window !== 'undefined' ? localStorage.getItem('safar_auth_token') || '' : '';
+      }
+
+      if (!token) {
+        setSubmitError('Your session has expired. Please sign in again.');
+        setSubmitting(false);
+        return;
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+      if (profile?.id && /^[0-9a-fA-F]{24}$/.test(profile.id)) {
+        headers['x-user-id'] = profile.id;
+      }
+      if (profile?.email) headers['x-user-email'] = profile.email;
+      if (profile?.firebaseUid) headers['x-user-uid'] = profile.firebaseUid;
 
       // First attempt direct redemption via one-time driver invitation
       const joinRes = await fetch('/api/events/join/driver', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'x-user-id': profile?.id || '',
-          'x-user-email': profile?.email || '',
-          'x-user-uid': profile?.firebaseUid || '',
-        },
+        headers,
         body: JSON.stringify({ code }),
       });
 
@@ -173,16 +203,17 @@ export function DriverEventAccessCard({ onEventSelected }: { onEventSelected?: (
         return;
       }
 
+      // If error is specific (e.g. wrong role code, already redeemed, or expired), display directly
+      if (joinData.error?.message && !joinData.error.message.includes('not found')) {
+        setSubmitError(joinData.error.message);
+        setSubmitting(false);
+        return;
+      }
+
       // Fallback: request access if host requires manual gate approval
       const res = await fetch('/api/events/access-requests', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'x-user-id': profile?.id || '',
-          'x-user-email': profile?.email || '',
-          'x-user-uid': profile?.firebaseUid || '',
-        },
+        headers,
         body: JSON.stringify({ code }),
       });
 

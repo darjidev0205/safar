@@ -17,6 +17,7 @@ import { EventWizardModal } from '../../components/host/event-wizard-modal';
 import { EditEventModal } from '../../components/host/edit-event-modal';
 import { GuestExcelImportModal } from '../../components/host/guest-excel-import-modal';
 import { EventAccessCodesModal } from '../../components/host/event-access-codes-modal';
+import { AddFunctionModal } from '../../components/host/add-function-modal';
 import { TripStatus } from '@safar/types';
 
 export default function HostDashboardPage() {
@@ -25,6 +26,7 @@ export default function HostDashboardPage() {
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isAddFunctionOpen, setIsAddFunctionOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isCodesModalOpen, setIsCodesModalOpen] = useState(false);
@@ -195,7 +197,13 @@ export default function HostDashboardPage() {
         currentDate={currentDate}
         hasEvents={events.length > 0}
         onUploadExcel={() => setIsImportModalOpen(true)}
-        onCreateFunction={() => setIsWizardOpen(true)}
+        onCreateFunction={() => {
+          if (activeEvent) {
+            setIsAddFunctionOpen(true);
+          } else {
+            setIsWizardOpen(true);
+          }
+        }}
       />
 
       {/* 2. Real Database Summary KPI Cards */}
@@ -206,23 +214,23 @@ export default function HostDashboardPage() {
         }}
       />
 
-      {/* 3. Functions & Events Section (Identical Card Structure) */}
+      {/* 3. Functions & Events Section (Ceremonies of Master Wedding) */}
       <section className="space-y-4">
         <SectionHeader
           title="Ceremonies & Functions"
-          subtitle="Distinct celebration milestones with dedicated guest rosters and chauffeur rules"
+          subtitle={`Distinct celebration milestones for ${activeEvent?.name || 'your wedding'} with dedicated guest rosters and chauffeur rules`}
           rightAction={
             <Link
               href="/host/events"
               className="text-xs font-semibold text-terracotta-700 hover:text-terracotta-800 flex items-center gap-1 font-sans transition-colors"
             >
-              <span>View All ({events.length})</span>
+              <span>View All ({activeEvent?.functions?.length || events.length})</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           }
         />
 
-        {events.length === 0 ? (
+        {(!activeEvent?.functions || activeEvent.functions.length === 0) && events.length === 0 ? (
           <EmptyState
             icon={<Calendar className="w-6 h-6 text-gold-600" />}
             title="No Functions Created Yet"
@@ -232,10 +240,20 @@ export default function HostDashboardPage() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 min-w-0">
-            {events.slice(0, 6).map((ev) => (
-              <FunctionCard
-                key={ev.id}
-                event={{
+            {((activeEvent?.functions && activeEvent.functions.length > 0)
+              ? activeEvent.functions.map((fn: any) => ({
+                  id: fn.id,
+                  name: fn.name,
+                  eventType: fn.type || 'CUSTOM',
+                  venueName: fn.venueName || activeEvent.venueName,
+                  city: activeEvent.city,
+                  startDate: fn.date || fn.startTime,
+                  startTime: fn.startTime ? new Date(fn.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '18:00',
+                  endTime: fn.endTime ? new Date(fn.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '23:00',
+                  guestCount: activeEvent.guestCount || 0,
+                  transportRequirements: activeEvent.transportRequirements,
+                }))
+              : events.slice(0, 6).map((ev: any) => ({
                   id: ev.id,
                   name: ev.name,
                   eventType: ev.eventType,
@@ -246,9 +264,12 @@ export default function HostDashboardPage() {
                   endTime: ev.endTime,
                   guestCount: ev.guestCount || 0,
                   transportRequirements: ev.transportRequirements,
-                }}
-                onEdit={(item) => {
-                  setActiveEvent(ev);
+                }))
+            ).map((item: any) => (
+              <FunctionCard
+                key={item.id}
+                event={item}
+                onEdit={() => {
                   setIsEditModalOpen(true);
                 }}
               />
@@ -299,6 +320,19 @@ export default function HostDashboardPage() {
         onClose={() => setIsWizardOpen(false)}
         onCreated={handleEventCreated}
       />
+
+      {activeEvent && (
+        <AddFunctionModal
+          isOpen={isAddFunctionOpen}
+          onClose={() => setIsAddFunctionOpen(false)}
+          eventId={activeEvent.id}
+          eventName={activeEvent.name}
+          defaultDate={activeEvent.startDate ? String(activeEvent.startDate).substring(0, 10) : undefined}
+          defaultVenueName={activeEvent.venueName}
+          defaultVenueAddress={activeEvent.venueAddress}
+          onFunctionAdded={fetchHostData}
+        />
+      )}
 
       {activeEvent && (
         <EditEventModal

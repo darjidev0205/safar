@@ -1,61 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
+import { getCallerUser } from '../../../../lib/caller-auth';
 
 export const dynamic = 'force-dynamic';
 
-async function getCallerUser(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const emailHeader = req.headers.get('x-user-email');
-  const uidHeader = req.headers.get('x-user-uid');
-  const idHeader = req.headers.get('x-user-id');
-  const queryUserId = req.nextUrl?.searchParams?.get('userId');
-
-  if (idHeader) {
-    const user = await prisma.user.findUnique({ where: { id: idHeader } });
-    if (user) return user;
-  }
-
-  if (queryUserId) {
-    const user = await prisma.user.findUnique({ where: { id: queryUserId } });
-    if (user) return user;
-  }
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split('Bearer ')[1].trim();
-    if (token.includes('@')) {
-      const user = await prisma.user.findFirst({ where: { email: { equals: token.toLowerCase(), mode: 'insensitive' } } });
-      if (user) return user;
-    }
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ firebaseUid: token }, { id: token }],
-      },
-    });
-    if (user) return user;
-  }
-
-  if (emailHeader) {
-    const user = await prisma.user.findFirst({ where: { email: { equals: emailHeader.toLowerCase(), mode: 'insensitive' } } });
-    if (user) return user;
-  }
-
-  if (uidHeader) {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ firebaseUid: uidHeader }, { id: uidHeader }],
-      },
-    });
-    if (user) return user;
-  }
-
-  return null;
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCallerUser(req);
+    const { user, errorResponse } = await getCallerUser(req);
     if (!user) {
-      return NextResponse.json(
+      return errorResponse || NextResponse.json(
         { success: false, error: { message: 'Authentication required' } },
         { status: 401 }
       );
@@ -136,11 +89,14 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const caller = await getCallerUser(req);
+    const { user: caller, errorResponse } = await getCallerUser(req);
     if (!caller) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Authentication required' } },
-        { status: 401 }
+      return (
+        errorResponse ||
+        NextResponse.json(
+          { success: false, error: { message: 'Authentication required' } },
+          { status: 401 }
+        )
       );
     }
 

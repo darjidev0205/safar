@@ -91,6 +91,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
     const {
       name,
+      type,
       date,
       startTime,
       endTime,
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       data: {
         eventId,
         name: name.trim(),
+        type: type ? String(type).toUpperCase() : 'CUSTOM',
         date: new Date(baseDateStr),
         startTime: parsedStart,
         endTime: parsedEnd,

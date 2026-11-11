@@ -28,15 +28,17 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const parentOnly = searchParams.get('parentOnly') === 'true';
     const parentEventId = searchParams.get('parentEventId');
+    const includeAll = searchParams.get('all') === 'true';
 
     const where: any = {
       accountId: context.account.id,
     };
 
-    if (parentOnly) {
-      where.parentEventId = null;
-    } else if (parentEventId) {
+    if (parentEventId) {
       where.parentEventId = parentEventId;
+    } else if (!includeAll) {
+      // By default, list Master Events only. Functions are embedded inside functions[]
+      where.parentEventId = null;
     }
 
     const events = await prisma.event.findMany({
@@ -167,7 +169,9 @@ export async function POST(req: NextRequest) {
       parsedEndDate = new Date(parsedStartDate.getTime() + 4 * 60 * 60 * 1000);
     }
 
-    // Verify parent event ownership if sub-event
+    // Verify parent event ownership if sub-event or function
+    // If parentEventId is provided, this is a Ceremony / Function under an existing master event.
+    // Do NOT generate new event-level access codes or duplicate the master event!
     if (parentEventId) {
       const parent = await prisma.event.findFirst({
         where: { id: parentEventId, accountId: context.account.id },
@@ -178,35 +182,52 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
-    }
 
-    // Generate or validate unique driver and guest access codes for the EVENT
-    let guestAccessCode = customGuestCode?.trim();
-    let driverAccessCode = customDriverCode?.trim();
-
-    if (!guestAccessCode || !driverAccessCode) {
-      const generated = await generateUniqueEventAccessCodes();
-      if (!guestAccessCode) guestAccessCode = generated.guestAccessCode;
-      if (!driverAccessCode) driverAccessCode = generated.driverAccessCode;
-    } else {
-      // Ensure provided custom codes do not collide
-      const existing = await prisma.event.findFirst({
-        where: {
-          OR: [
-            { guestAccessCode },
-            { driverAccessCode },
-            { joinCode: guestAccessCode },
-          ],
+      const createdFunction = await prisma.function.create({
+        data: {
+          eventId: parentEventId,
+          name: name.trim(),
+          type: eventType || 'CUSTOM',
+          date: parsedStartDate,
+          startTime: parsedStartDate,
+          endTime: parsedEndDate,
+          venueName: venueName?.trim() || parent.venueName || null,
+          venueAddress: venueAddress?.trim() || parent.venueAddress || null,
+          latitude: venueLatitude ? parseFloat(venueLatitude) : (parent.venueLatitude || null),
+          longitude: venueLongitude ? parseFloat(venueLongitude) : (parent.venueLongitude || null),
+          description: description?.trim() || null,
+          status: 'ACTIVE',
         },
       });
-      if (existing) {
-        const generated = await generateUniqueEventAccessCodes();
-        guestAccessCode = generated.guestAccessCode;
-        driverAccessCode = generated.driverAccessCode;
-      }
+
+      return NextResponse.json({
+        success: true,
+        function: createdFunction,
+        event: parent,
+        message: `Function "${createdFunction.name}" added to ${parent.name}.`,
+      }, { status: 201 });
     }
 
-    const joinCode = guestAccessCode; // Backward compatibility with joinCode
+    // ── Build authoritative codes ───────────────────────────────────────────
+    // Both the Event row and the EventAccessCode registry must carry the SAME code.
+    // 1. Guest code: generate one 10-char code, store both raw and display form.
+    // 2. Driver code: generate one 10-char code, store it.
+    // 3. event.joinCode = raw 10-char guest code (legacy compat).
+    // 4. Never generate a second independent code inside the transaction.
+
+    const { generateSecureCode, computeCodeDigest, normalizeAccessCode } = await import('../../../lib/access-code');
+
+    // Guest code
+    const guestCodeObj = generateSecureCode(10);
+    const guestRawCode = guestCodeObj.code;
+    const guestDisplayCode = guestCodeObj.displayCode;
+
+    // Driver code — a fresh code that will ALSO be what's shown on the host dashboard
+    const driverCodeObj = generateSecureCode(10);
+    const driverRawCode = driverCodeObj.code;
+    const driverDisplayCode = driverCodeObj.displayCode;
+
+    const joinCode = guestRawCode; // event.joinCode = raw guest code
 
     const createdEvent = await prisma.$transaction(async (tx) => {
       const newEvent = await tx.event.create({
@@ -228,30 +249,39 @@ export async function POST(req: NextRequest) {
           description: description?.trim() || null,
           bannerUrl: bannerUrl?.trim() || null,
           parentEventId: parentEventId || null,
-          joinCode,
-          driverAccessCode,
-          guestAccessCode,
+          joinCode,                        // raw 10-char guest code
+          guestAccessCode: guestDisplayCode, // formatted XXXXX-XXXXX for display
+          driverAccessCode: driverDisplayCode, // formatted XXXXX-XXXXX for display
           status: EventStatus.ACTIVE,
         },
       });
 
-      // Register authoritative GUEST_EVENT access code in centralized registry
-      await createGuestAccessCodeRecord(tx, {
+      // Register GUEST_EVENT access code — use the SAME code generated above
+      const { createGuestAccessCodeRecord: _cg, createDriverInviteCodeRecord: _cd } = await import('../../../lib/access-code');
+      await _cg(tx, {
         accountId: context.account.id,
         eventId: newEvent.id,
         creatorId: context.user.id,
-        customCode: guestAccessCode,
+        customCode: guestRawCode,
       });
 
-      // Register initial chauffeur invitation code in centralized registry
-      if (driverAccessCode) {
-        await createDriverInviteCodeRecord(tx, {
+      // Register DRIVER_INVITE code — use the SAME driver code generated above
+      await tx.eventAccessCode.create({
+        data: {
           accountId: context.account.id,
           eventId: newEvent.id,
-          creatorId: context.user.id,
-          recipientName: 'General Chauffeur Code',
-        });
-      }
+          purpose: 'DRIVER_INVITE',
+          code: driverRawCode,
+          codeDigest: computeCodeDigest(driverRawCode),
+          displayCode: driverDisplayCode,
+          isActive: true,
+          isSingleUse: true,
+          maxUses: 1,
+          useCount: 0,
+          recipientName: 'General Chauffeur Invitation',
+          createdBy: context.user.id,
+        },
+      });
 
       // Also create Venue place record if venue info provided
       if (venueName) {
@@ -281,22 +311,6 @@ export async function POST(req: NextRequest) {
             vehicleType: transport.vehicleType?.trim() || 'Sedan',
             numberOfVehicles: transport.numberOfVehicles ? parseInt(String(transport.numberOfVehicles), 10) : 1,
             specialInstructions: transport.specialInstructions?.trim() || null,
-          },
-        });
-      }
-
-      // If this is a child ceremony/function under a master event
-      if (parentEventId) {
-        await tx.function.create({
-          data: {
-            eventId: parentEventId,
-            name: name.trim(),
-            date: parsedStartDate,
-            startTime: parsedStartDate,
-            endTime: parsedEndDate,
-            venueName: venueName?.trim() || null,
-            venueAddress: venueAddress?.trim() || null,
-            description: description?.trim() || null,
           },
         });
       }

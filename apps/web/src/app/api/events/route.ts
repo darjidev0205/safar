@@ -265,7 +265,7 @@ export async function POST(req: NextRequest) {
         customCode: guestRawCode,
       });
 
-      // Register DRIVER_INVITE code — use the SAME driver code generated above
+      // Register DRIVER_INVITE code — use the SAME driver code generated above (shared master passcode, multi-use)
       await tx.eventAccessCode.create({
         data: {
           accountId: context.account.id,
@@ -275,10 +275,10 @@ export async function POST(req: NextRequest) {
           codeDigest: computeCodeDigest(driverRawCode),
           displayCode: driverDisplayCode,
           isActive: true,
-          isSingleUse: true,
-          maxUses: 1,
+          isSingleUse: false,
+          maxUses: null,
           useCount: 0,
-          recipientName: 'General Chauffeur Invitation',
+          recipientName: 'Master Wedding Chauffeur Fleet Passcode',
           createdBy: context.user.id,
         },
       });
@@ -319,13 +319,32 @@ export async function POST(req: NextRequest) {
       if (Array.isArray(functions) && functions.length > 0) {
         for (const fn of functions) {
           if (!fn.name?.trim()) continue;
-          const fnDateStr = fn.date || (fn.startDate ? String(fn.startDate).substring(0, 10) : parsedStartDate.toISOString().substring(0, 10));
+          const fnDateStr =
+            typeof fn.date === 'string' && fn.date.includes('T')
+              ? fn.date.split('T')[0]
+              : (fn.date || (fn.startDate ? String(fn.startDate).substring(0, 10) : parsedStartDate.toISOString().substring(0, 10)));
           const fnStartDate = new Date(fnDateStr);
-          const startIso = fn.startTime ? `${fnDateStr}T${fn.startTime}:00` : `${fnDateStr}T18:00:00`;
-          const endIso = fn.endTime ? `${fnDateStr}T${fn.endTime}:00` : `${fnDateStr}T23:00:00`;
 
-          const fnStart = new Date(startIso);
-          let fnEnd = new Date(endIso);
+          let fnStart: Date;
+          if (fn.startTime && typeof fn.startTime === 'string' && fn.startTime.includes('T')) {
+            fnStart = new Date(fn.startTime);
+          } else if (fn.startTime) {
+            const timeStr = fn.startTime.length === 5 ? `${fn.startTime}:00` : fn.startTime;
+            fnStart = new Date(`${fnDateStr}T${timeStr}`);
+          } else {
+            fnStart = new Date(`${fnDateStr}T18:00:00`);
+          }
+
+          let fnEnd: Date;
+          if (fn.endTime && typeof fn.endTime === 'string' && fn.endTime.includes('T')) {
+            fnEnd = new Date(fn.endTime);
+          } else if (fn.endTime) {
+            const timeStr = fn.endTime.length === 5 ? `${fn.endTime}:00` : fn.endTime;
+            fnEnd = new Date(`${fnDateStr}T${timeStr}`);
+          } else {
+            fnEnd = new Date(fnStart.getTime() + 4 * 60 * 60 * 1000);
+          }
+
           if (isNaN(fnEnd.getTime()) || fnEnd <= fnStart) {
             fnEnd = new Date(fnStart.getTime() + 4 * 60 * 60 * 1000);
           }
@@ -350,7 +369,7 @@ export async function POST(req: NextRequest) {
       }
 
       return newEvent;
-    });
+    }, { timeout: 30000, maxWait: 15000 });
 
     const fullEvent = await prisma.event.findUnique({
       where: { id: createdEvent.id },

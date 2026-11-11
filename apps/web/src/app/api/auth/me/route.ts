@@ -193,7 +193,9 @@ export async function GET(req: NextRequest) {
               guests: { include: { event: true } },
             },
           });
-        });
+        },
+        { timeout: 25000, maxWait: 15000 }
+      );
       }
     }
 

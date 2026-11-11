@@ -82,6 +82,7 @@ enum AccessRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  LEFT
 }
 
 enum AccessCodePurpose {

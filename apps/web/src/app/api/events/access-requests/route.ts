@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/db';
-import { getCallerUser } from '../../../../lib/caller-auth';
+import { getCallerUser, isValidObjectId } from '../../../../lib/caller-auth';
 import { getAuthenticatedHost } from '../../../../lib/auth-server';
 import { firestore, doc, setDoc } from '../../../../lib/firebase';
 import { Role, AccessRequestStatus } from '@prisma/client';
@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
     const statusFilter = searchParams.get('status') as AccessRequestStatus | null;
     const roleFilter = searchParams.get('role') as Role | null;
     const eventId = searchParams.get('eventId');
+
+    if (eventId && !isValidObjectId(eventId)) {
+      return NextResponse.json({ success: true, requests: [] });
+    }
 
     const isHost =
       caller.role === Role.EVENT_ORGANIZER ||
@@ -278,25 +282,30 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Sync to Firestore for realtime host notifications
+      // Sync to Firestore for realtime host notifications (non-blocking)
       try {
-        await setDoc(
-          doc(firestore, 'event_access_requests', updated.id),
-          {
-            id: updated.id,
-            eventId: matchedEvent.id,
-            eventName: matchedEvent.name,
-            hostAccountId: matchedEvent.accountId,
-            userId: caller.id,
-            userName: caller.fullName,
-            userEmail: caller.email,
-            userPhone: caller.phoneNumber,
-            role: targetRole,
-            status: 'PENDING',
-            requestedAt: now.toISOString(),
-          },
-          { merge: true }
-        );
+        if (firestore) {
+          Promise.race([
+            setDoc(
+              doc(firestore, 'event_access_requests', updated.id),
+              {
+                id: updated.id,
+                eventId: matchedEvent.id,
+                eventName: matchedEvent.name,
+                hostAccountId: matchedEvent.accountId,
+                userId: caller.id,
+                userName: caller.fullName,
+                userEmail: caller.email,
+                userPhone: caller.phoneNumber,
+                role: targetRole,
+                status: 'PENDING',
+                requestedAt: now.toISOString(),
+              },
+              { merge: true }
+            ),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 1000)),
+          ]).catch(() => {});
+        }
       } catch (fsErr) {
         console.warn('Firestore sync note:', fsErr);
       }
@@ -323,25 +332,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 5. Sync to Firestore for live reactive host listener
+    // 5. Sync to Firestore for live reactive host listener (non-blocking)
     try {
-      await setDoc(
-        doc(firestore, 'event_access_requests', created.id),
-        {
-          id: created.id,
-          eventId: matchedEvent.id,
-          eventName: matchedEvent.name,
-          hostAccountId: matchedEvent.accountId,
-          userId: caller.id,
-          userName: caller.fullName,
-          userEmail: caller.email,
-          userPhone: caller.phoneNumber,
-          role: targetRole,
-          status: 'PENDING',
-          requestedAt: now.toISOString(),
-        },
-        { merge: true }
-      );
+      if (firestore) {
+        Promise.race([
+          setDoc(
+            doc(firestore, 'event_access_requests', created.id),
+            {
+              id: created.id,
+              eventId: matchedEvent.id,
+              eventName: matchedEvent.name,
+              hostAccountId: matchedEvent.accountId,
+              userId: caller.id,
+              userName: caller.fullName,
+              userEmail: caller.email,
+              userPhone: caller.phoneNumber,
+              role: targetRole,
+              status: 'PENDING',
+              requestedAt: now.toISOString(),
+            },
+            { merge: true }
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 1000)),
+        ]).catch(() => {});
+      }
     } catch (fsErr) {
       console.warn('Firestore sync note:', fsErr);
     }

@@ -91,62 +91,68 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create user in PostgreSQL transaction
-    const newUser = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          firebaseUid: cleanUid,
-          email: cleanEmail,
-          fullName: fullName.trim(),
-          phoneNumber: phoneNumber?.trim() || null,
-          role: dbRole,
-        },
-      });
+    // Pre-resolve primary account if driver registration
+    let existingAccount = await prisma.account.findFirst();
 
-      // Role specific resource provisioning
-      if (dbRole === 'EVENT_ORGANIZER') {
-        const slug = `org-${Date.now().toString(36)}`;
-        const account = await tx.account.create({
+    // Create user in transaction with generous timeout for cloud Atlas
+    const newUser = await prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.create({
           data: {
-            name: `${user.fullName}'s Organization`,
-            slug,
-            ownerId: user.id,
+            firebaseUid: cleanUid,
+            email: cleanEmail,
+            fullName: fullName.trim(),
+            phoneNumber: phoneNumber?.trim() || null,
+            role: dbRole,
           },
         });
-        await tx.accountMember.create({
-          data: {
-            accountId: account.id,
-            userId: user.id,
-            role: 'ACCOUNT_OWNER',
-          },
-        });
-      } else if (dbRole === 'DRIVER') {
-        // Find or create primary account to attach driver
-        let primaryAccount = await tx.account.findFirst();
-        if (!primaryAccount) {
-          primaryAccount = await tx.account.create({
+
+        // Role specific resource provisioning
+        if (dbRole === 'EVENT_ORGANIZER') {
+          const slug = `org-${Date.now().toString(36)}`;
+          const account = await tx.account.create({
             data: {
-              name: 'SAFAR Mobility Network',
-              slug: 'safar-mobility',
+              name: `${user.fullName}'s Organization`,
+              slug,
               ownerId: user.id,
+            },
+          });
+          await tx.accountMember.create({
+            data: {
+              accountId: account.id,
+              userId: user.id,
+              role: 'ACCOUNT_OWNER',
+            },
+          });
+        } else if (dbRole === 'DRIVER') {
+          let primaryAccountId = existingAccount?.id;
+          if (!primaryAccountId) {
+            const primaryAccount = await tx.account.create({
+              data: {
+                name: 'SAFAR Mobility Network',
+                slug: `safar-mobility-${Date.now().toString(36)}`,
+                ownerId: user.id,
+              },
+            });
+            primaryAccountId = primaryAccount.id;
+          }
+
+          await tx.driver.create({
+            data: {
+              accountId: primaryAccountId,
+              userId: user.id,
+              licenseNumber: 'DL-PENDING',
+              dutyStatus: 'AVAILABLE',
+              approvalStatus: 'APPROVED',
+              isVerified: true,
             },
           });
         }
 
-        await tx.driver.create({
-          data: {
-            accountId: primaryAccount.id,
-            userId: user.id,
-            licenseNumber: 'DL-PENDING',
-            dutyStatus: 'AVAILABLE',
-            approvalStatus: 'APPROVED',
-            isVerified: true,
-          },
-        });
-      }
-
-      return user;
-    });
+        return user;
+      },
+      { timeout: 25000, maxWait: 15000 }
+    );
 
     return NextResponse.json({
       success: true,

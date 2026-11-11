@@ -39,19 +39,24 @@ export async function POST(req: NextRequest) {
     // 2. Execute atomic redemption
     const result = await redeemDriverInvite(normalized, caller);
 
-    // 3. Realtime sync to Firestore if configured
+    // 3. Realtime sync to Firestore if configured (fire-and-forget, never hangs the join response)
     try {
-      await setDoc(
-        doc(firestore, 'driver_events', `${caller.id}_${event.id}`),
-        {
-          driverId: result.driver.id,
-          eventId: event.id,
-          eventName: event.name,
-          status: 'APPROVED',
-          redeemedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      if (firestore) {
+        Promise.race([
+          setDoc(
+            doc(firestore, 'driver_events', `${caller.id}_${event.id}`),
+            {
+              driverId: result.driver.id,
+              eventId: event.id,
+              eventName: event.name,
+              status: 'APPROVED',
+              redeemedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore sync skipped')), 1000)),
+        ]).catch(() => {});
+      }
     } catch (fsErr) {
       console.warn('Realtime sync optional notice:', fsErr);
     }

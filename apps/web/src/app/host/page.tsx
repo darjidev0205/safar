@@ -280,18 +280,14 @@ export default function HostDashboardPage() {
 
       {/* 4. Event Access Passcodes Presentation */}
       <AccessCodeCard
-        eventName={activeEvent?.name || events[0]?.name || 'Master Wedding Celebration'}
-        driverCode={
-          activeEvent?.driverAccessCode ||
-          events[0]?.driverAccessCode ||
-          (activeEvent?.id ? `DRV${activeEvent.id.slice(-3).toUpperCase()}` : 'DRV849')
-        }
+        eventName={activeEvent?.name || events[0]?.name || ''}
+        driverCode={activeEvent?.driverAccessCode || events[0]?.driverAccessCode || ''}
         guestCode={
           activeEvent?.guestAccessCode ||
           activeEvent?.joinCode ||
           events[0]?.guestAccessCode ||
           events[0]?.joinCode ||
-          (activeEvent?.id ? `GST${activeEvent.id.slice(-3).toUpperCase()}` : 'GST26X')
+          ''
         }
         onManageCodes={() => setIsCodesModalOpen(true)}
       />

@@ -109,13 +109,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Parse start and end timestamps
-    const baseDateStr = date || event.startDate.toISOString().substring(0, 10);
-    const startIso = startTime ? `${baseDateStr}T${startTime}:00` : `${baseDateStr}T18:00:00`;
-    const endIso = endTime ? `${baseDateStr}T${endTime}:00` : `${baseDateStr}T23:00:00`;
+    // Parse start and end timestamps (supports HH:mm, HH:mm:ss, or full ISO strings)
+    const baseDateStr =
+      typeof date === 'string' && date.includes('T')
+        ? date.split('T')[0]
+        : (date || event.startDate.toISOString().substring(0, 10));
 
-    const parsedStart = new Date(startIso);
-    let parsedEnd = new Date(endIso);
+    let parsedStart: Date;
+    if (startTime && typeof startTime === 'string' && startTime.includes('T')) {
+      parsedStart = new Date(startTime);
+    } else if (startTime) {
+      const timeStr = startTime.length === 5 ? `${startTime}:00` : startTime;
+      parsedStart = new Date(`${baseDateStr}T${timeStr}`);
+    } else {
+      parsedStart = new Date(`${baseDateStr}T18:00:00`);
+    }
+
+    let parsedEnd: Date;
+    if (endTime && typeof endTime === 'string' && endTime.includes('T')) {
+      parsedEnd = new Date(endTime);
+    } else if (endTime) {
+      const timeStr = endTime.length === 5 ? `${endTime}:00` : endTime;
+      parsedEnd = new Date(`${baseDateStr}T${timeStr}`);
+    } else {
+      parsedEnd = new Date(parsedStart.getTime() + 4 * 60 * 60 * 1000);
+    }
+
     if (isNaN(parsedStart.getTime())) {
       return NextResponse.json(
         { success: false, error: { message: 'Invalid start time.' } },

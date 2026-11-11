@@ -517,20 +517,24 @@ export async function redeemDriverInvite(
   return await prisma.$transaction(async (tx) => {
     const now = new Date();
 
-    // 1. If not legacy, atomically mark single-use code redeemed
+    // 1. If not legacy, check code validity and redeem
     if (resolution.codeRecord && !resolution.isLegacy) {
       const codeRecord = await tx.eventAccessCode.findUnique({
         where: { id: resolution.codeRecord.id },
       });
 
-      if (!codeRecord || !codeRecord.isActive || codeRecord.redeemedAt) {
+      if (!codeRecord || !codeRecord.isActive) {
+        throw new Error('This driver invitation code is no longer active.');
+      }
+
+      if (codeRecord.isSingleUse && codeRecord.redeemedAt) {
         throw new Error('This driver invitation code has already been redeemed or is no longer active.');
       }
 
       await tx.eventAccessCode.update({
         where: { id: codeRecord.id },
         data: {
-          isActive: false,
+          isActive: codeRecord.isSingleUse ? false : true,
           redeemedAt: now,
           redeemedByUserId: caller.id,
           useCount: { increment: 1 },
